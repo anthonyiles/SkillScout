@@ -3,14 +3,6 @@ defineOptions({
   inheritAttrs: false
 })
 
-const props = defineProps<{
-  modelValue: string | number
-  label?: string
-  placeholder?: string
-  type?: string
-  id?: string
-}>()
-
 import { computed } from 'vue'
 
 const props = defineProps<{
