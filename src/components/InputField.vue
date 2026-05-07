@@ -3,23 +3,37 @@ defineOptions({
   inheritAttrs: false
 })
 
-defineProps<{
+const props = defineProps<{
   modelValue: string | number
   label?: string
   placeholder?: string
   type?: string
 }>()
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits<{
+  'update:modelValue': [value: string | number]
+}>()
+
+function handleInput(event: Event) {
+  const target = event.target as HTMLInputElement
+  const value = target.value
+
+  if (props.type === 'number') {
+    const numValue = value === '' ? '' : Number(value)
+    emit('update:modelValue', numValue === '' || isNaN(numValue as number) ? '' : numValue)
+  } else {
+    emit('update:modelValue', value)
+  }
+}
 </script>
 
 <template>
   <div class="form-group" :class="$attrs.class" :style="$attrs.style">
     <label v-if="label">{{ label }}</label>
-    <input 
-      :type="type || 'text'" 
-      :value="modelValue" 
-      @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
+    <input
+      :type="type || 'text'"
+      :value="modelValue"
+      @input="handleInput"
       :placeholder="placeholder"
       v-bind="{ ...$attrs, class: undefined, style: undefined }"
     />

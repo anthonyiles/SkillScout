@@ -28,19 +28,29 @@ const { success } = useToast()
 onMounted(() => {
   const savedProjects = localStorage.getItem('projects')
   if (savedProjects) {
-    // Map legacy projects if any
-    const parsed = JSON.parse(savedProjects)
-    projects.value = parsed.map((p: any) => ({
-      ...p,
-      agentIds: p.agentIds || []
-    }))
+    try {
+      // Map legacy projects if any
+      const parsed = JSON.parse(savedProjects)
+      projects.value = parsed.map((p: any) => ({
+        ...p,
+        agentIds: p.agentIds || []
+      }))
+    } catch (e) {
+      console.error('Failed to parse projects from localStorage:', e)
+      addProject()
+    }
   } else {
     addProject()
   }
-  
+
   const savedAgents = localStorage.getItem('agents')
   if (savedAgents) {
-    availableAgents.value = JSON.parse(savedAgents)
+    try {
+      availableAgents.value = JSON.parse(savedAgents)
+    } catch (e) {
+      console.error('Failed to parse agents from localStorage:', e)
+      availableAgents.value = []
+    }
   }
 })
 

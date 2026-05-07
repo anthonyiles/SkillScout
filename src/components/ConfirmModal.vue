@@ -1,5 +1,8 @@
 <script setup lang="ts">
-defineProps<{
+import { watch, nextTick, ref, onBeforeUnmount } from 'vue'
+import BaseButton from './BaseButton.vue'
+
+const props = defineProps<{
   isOpen: boolean
   title: string
   message: string
@@ -8,19 +11,42 @@ defineProps<{
   danger?: boolean
 }>()
 
-import BaseButton from './BaseButton.vue'
-
 const emit = defineEmits(['confirm', 'cancel'])
+const modalContentRef = ref<HTMLElement | null>(null)
+const previousActiveElement = ref<HTMLElement | null>(null)
+
+function handleKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && props.isOpen) {
+    emit('cancel')
+  }
+}
+
+watch(() => props.isOpen, (isOpen) => {
+  if (isOpen) {
+    previousActiveElement.value = document.activeElement as HTMLElement
+    window.addEventListener('keydown', handleKeydown)
+    nextTick(() => {
+      modalContentRef.value?.focus()
+    })
+  } else {
+    window.removeEventListener('keydown', handleKeydown)
+    previousActiveElement.value?.focus()
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
 </script>
 
 <template>
   <div v-if="isOpen" class="modal-overlay" @click.self="emit('cancel')">
-    <div class="modal-content glass">
+    <div class="modal-content glass" role="dialog" aria-modal="true" :aria-labelledby="'modal-title-' + title" :aria-describedby="'modal-message-' + title" tabindex="-1" ref="modalContentRef">
       <div class="modal-header">
-        <h3 class="text-h2">{{ title }}</h3>
+        <h3 class="text-h2" :id="'modal-title-' + title">{{ title }}</h3>
       </div>
       <div class="modal-body">
-        <p class="text-body">{{ message }}</p>
+        <p class="text-body" :id="'modal-message-' + title">{{ message }}</p>
       </div>
       <div class="modal-actions">
         <BaseButton variant="secondary" @click="emit('cancel')">{{ cancelText || 'Cancel' }}</BaseButton>

@@ -1,17 +1,36 @@
 <script setup lang="ts">
-defineProps<{
+import { watch, onBeforeUnmount } from 'vue'
+import BaseButton from './BaseButton.vue'
+
+const props = defineProps<{
   isOpen: boolean
   title: string
   content: string
 }>()
-
-import BaseButton from './BaseButton.vue'
 
 const emit = defineEmits(['close'])
 
 function close() {
   emit('close')
 }
+
+function handleKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && props.isOpen) {
+    close()
+  }
+}
+
+watch(() => props.isOpen, (isOpen) => {
+  if (isOpen) {
+    window.addEventListener('keydown', handleKeydown)
+  } else {
+    window.removeEventListener('keydown', handleKeydown)
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
 </script>
 
 <template>

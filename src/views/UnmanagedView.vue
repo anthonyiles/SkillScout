@@ -37,7 +37,7 @@ const knownRules = ref<Set<string>>(new Set())
 const scanning = ref(false)
 const loading = ref(true)
 
-const { info, success } = useToast()
+const { info, success, error } = useToast()
 
 function getProjectName(path: string) {
   if (!path) return 'New Project'
@@ -47,92 +47,116 @@ function getProjectName(path: string) {
 
 async function scanLocal() {
   scanning.value = true
-  
-  // Load agents
-  const savedAgents = localStorage.getItem('agents')
-  if (savedAgents) {
-    availableAgents.value = JSON.parse(savedAgents)
-  }
-  
-  // Load known items
-  const savedSkills = localStorage.getItem('skills')
-  if (savedSkills) {
-    const parsed = JSON.parse(savedSkills)
-    knownSkills.value = new Set(parsed.map((s: any) => s.name))
-  }
 
-  const savedRules = localStorage.getItem('rules')
-  if (savedRules) {
-    const parsed = JSON.parse(savedRules)
-    knownRules.value = new Set(parsed.map((r: any) => r.name))
-  }
-  
-  // Load projects
-  const savedProjects = localStorage.getItem('projects')
-  if (savedProjects) {
-    const rawProjects: Project[] = JSON.parse(savedProjects)
-    
-    const enriched: ProjectWithLocalItems[] = []
-    
-    for (const p of rawProjects) {
-      if (!p.path || !p.agentIds) {
-        enriched.push({ ...p, unmanaged: [] })
-        continue
+  try {
+    // Load agents
+    const savedAgents = localStorage.getItem('agents')
+    if (savedAgents) {
+      try {
+        availableAgents.value = JSON.parse(savedAgents)
+      } catch (e) {
+        console.error('Failed to parse agents from localStorage:', e)
+        availableAgents.value = []
       }
-      
-      const skillPaths = new Set<string>();
-      const rulePaths = new Set<string>();
-      
-      for (const agentId of p.agentIds) {
-        const agent = availableAgents.value.find(a => a.id === agentId);
-        if (agent) {
-          if (agent.skillsPath) skillPaths.add(agent.skillsPath);
-          if (agent.rulesPath) rulePaths.add(agent.rulesPath);
-        }
-      }
-      
-      let unmanaged: UnmanagedItem[] = []
-      
-      // Scan skills
-      if (skillPaths.size > 0) {
-        try {
-          const foundFiles: string[] = await invoke('get_project_files', { 
-            projectPath: p.path, 
-            subFolders: Array.from(skillPaths) 
-          });
-          
-          unmanaged.push(...foundFiles
-            .filter(f => !knownSkills.value.has(f))
-            .map(f => ({ name: f, path: p.path, type: 'skill' as const })))
-        } catch (e) {
-          console.error(e)
-        }
-      }
-
-      // Scan rules
-      if (rulePaths.size > 0) {
-        try {
-          const foundFiles: string[] = await invoke('get_project_files', { 
-            projectPath: p.path, 
-            subFolders: Array.from(rulePaths) 
-          });
-          
-          unmanaged.push(...foundFiles
-            .filter(f => !knownRules.value.has(f))
-            .map(f => ({ name: f, path: p.path, type: 'rule' as const })))
-        } catch (e) {
-          console.error(e)
-        }
-      }
-      
-      enriched.push({ ...p, unmanaged })
     }
-    
-    projects.value = enriched
+
+    // Load known items
+    const savedSkills = localStorage.getItem('skills')
+    if (savedSkills) {
+      try {
+        const parsed = JSON.parse(savedSkills)
+        knownSkills.value = new Set(parsed.map((s: any) => s.name))
+      } catch (e) {
+        console.error('Failed to parse skills from localStorage:', e)
+        knownSkills.value = new Set()
+      }
+    }
+
+    const savedRules = localStorage.getItem('rules')
+    if (savedRules) {
+      try {
+        const parsed = JSON.parse(savedRules)
+        knownRules.value = new Set(parsed.map((r: any) => r.name))
+      } catch (e) {
+        console.error('Failed to parse rules from localStorage:', e)
+        knownRules.value = new Set()
+      }
+    }
+
+    // Load projects
+    const savedProjects = localStorage.getItem('projects')
+    if (savedProjects) {
+      try {
+        const rawProjects: Project[] = JSON.parse(savedProjects)
+
+        const enriched: ProjectWithLocalItems[] = []
+
+        for (const p of rawProjects) {
+          if (!p.path || !p.agentIds) {
+            enriched.push({ ...p, unmanaged: [] })
+            continue
+          }
+
+          const skillPaths = new Set<string>();
+          const rulePaths = new Set<string>();
+
+          for (const agentId of p.agentIds) {
+            const agent = availableAgents.value.find(a => a.id === agentId);
+            if (agent) {
+              if (agent.skillsPath) skillPaths.add(agent.skillsPath);
+              if (agent.rulesPath) rulePaths.add(agent.rulesPath);
+            }
+          }
+
+          let unmanaged: UnmanagedItem[] = []
+
+          // Scan skills
+          if (skillPaths.size > 0) {
+            try {
+              const foundFiles: string[] = await invoke('get_project_files', {
+                projectPath: p.path,
+                subFolders: Array.from(skillPaths)
+              });
+
+              unmanaged.push(...foundFiles
+                .filter(f => !knownSkills.value.has(f))
+                .map(f => ({ name: f, path: p.path, type: 'skill' as const })))
+            } catch (e) {
+              console.error(`Failed to scan skills for project ${p.path}:`, e)
+              error(`Failed to scan skills in ${p.path}: ${e}`)
+            }
+          }
+
+          // Scan rules
+          if (rulePaths.size > 0) {
+            try {
+              const foundFiles: string[] = await invoke('get_project_files', {
+                projectPath: p.path,
+                subFolders: Array.from(rulePaths)
+              });
+
+              unmanaged.push(...foundFiles
+                .filter(f => !knownRules.value.has(f))
+                .map(f => ({ name: f, path: p.path, type: 'rule' as const })))
+            } catch (e) {
+              console.error(`Failed to scan rules for project ${p.path}:`, e)
+              error(`Failed to scan rules in ${p.path}: ${e}`)
+            }
+          }
+
+          enriched.push({ ...p, unmanaged })
+        }
+
+        projects.value = enriched
+      } catch (e) {
+        console.error('Failed to parse projects from localStorage:', e)
+        projects.value = []
+      }
+    }
+  } finally {
+    scanning.value = false
+    loading.value = false
   }
-  
-  scanning.value = false
-  loading.value = false
 }
 
 onMounted(async () => {
@@ -144,7 +168,7 @@ async function handleManualScan() {
   success('Scan complete!')
 }
 
-function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) {
+function promoteItem(item: UnmanagedItem, _project: ProjectWithLocalItems) {
   info(`Promoting ${item.type} "${item.name}" is not implemented yet! (Coming soon)`)
 }
 </script>

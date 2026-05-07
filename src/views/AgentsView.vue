@@ -26,7 +26,13 @@ const { success } = useToast()
 onMounted(() => {
   const savedAgents = localStorage.getItem('agents')
   if (savedAgents) {
-    agents.value = JSON.parse(savedAgents)
+    try {
+      agents.value = JSON.parse(savedAgents)
+    } catch (e) {
+      console.error('Failed to parse agents from localStorage:', e)
+      agents.value = [...defaultAgents]
+      saveAgents()
+    }
   } else {
     agents.value = [...defaultAgents]
     saveAgents()

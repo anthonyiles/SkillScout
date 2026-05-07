@@ -60,20 +60,35 @@ onMounted(() => {
   // Load projects from local storage
   const savedProjects = localStorage.getItem('projects')
   if (savedProjects) {
-    projects.value = JSON.parse(savedProjects)
+    try {
+      projects.value = JSON.parse(savedProjects)
+    } catch (e) {
+      console.error('Failed to parse projects from localStorage:', e)
+      projects.value = []
+    }
   }
-  
+
   const savedAgents = localStorage.getItem('agents')
   if (savedAgents) {
-    availableAgents.value = JSON.parse(savedAgents)
+    try {
+      availableAgents.value = JSON.parse(savedAgents)
+    } catch (e) {
+      console.error('Failed to parse agents from localStorage:', e)
+      availableAgents.value = []
+    }
   }
-  
+
   // Load cached skills from local storage
   const savedSkills = localStorage.getItem('skills')
   if (savedSkills) {
-    skills.value = JSON.parse(savedSkills)
-    initializeMatrix()
-    scanLocal(true)
+    try {
+      skills.value = JSON.parse(savedSkills)
+      initializeMatrix()
+      scanLocal(true)
+    } catch (e) {
+      console.error('Failed to parse skills from localStorage:', e)
+      skills.value = []
+    }
   }
 })
 
@@ -91,7 +106,10 @@ function initializeMatrix() {
       for (const [key, arr] of Object.entries(parsed)) {
         selectionMatrix.value[key] = new Set(arr as number[])
       }
-    } catch(e) {}
+    } catch(e) {
+      console.error('Failed to parse skillsSelection from localStorage:', e, savedSelection)
+      selectionMatrix.value = {}
+    }
   }
 }
 

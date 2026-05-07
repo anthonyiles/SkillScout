@@ -59,27 +59,47 @@ onMounted(() => {
   // Load projects from local storage
   const savedProjects = localStorage.getItem('projects')
   if (savedProjects) {
-    projects.value = JSON.parse(savedProjects)
+    try {
+      projects.value = JSON.parse(savedProjects)
+    } catch (e) {
+      console.error('Failed to parse projects from localStorage:', e)
+      projects.value = []
+    }
   }
-  
+
   const savedAgents = localStorage.getItem('agents')
   if (savedAgents) {
-    availableAgents.value = JSON.parse(savedAgents)
+    try {
+      availableAgents.value = JSON.parse(savedAgents)
+    } catch (e) {
+      console.error('Failed to parse agents from localStorage:', e)
+      availableAgents.value = []
+    }
   }
-  
+
   // Load cached rules from local storage
   const savedRules = localStorage.getItem('rules')
   if (savedRules) {
-    rules.value = JSON.parse(savedRules)
-    initializeMatrix()
+    try {
+      rules.value = JSON.parse(savedRules)
+      initializeMatrix()
+    } catch (e) {
+      console.error('Failed to parse rules from localStorage:', e)
+      rules.value = []
+    }
   } else {
     // Check if we already synced via Skills page
     const allData = localStorage.getItem('all_repo_data')
     if (allData) {
-      const parsedData: Skill[] = JSON.parse(allData)
-      rules.value = parsedData.filter(s => s.folder === 'rules')
-      localStorage.setItem('rules', JSON.stringify(rules.value))
-      initializeMatrix()
+      try {
+        const parsedData: Skill[] = JSON.parse(allData)
+        rules.value = parsedData.filter(s => s.folder === 'rules')
+        localStorage.setItem('rules', JSON.stringify(rules.value))
+        initializeMatrix()
+      } catch (e) {
+        console.error('Failed to parse all_repo_data from localStorage:', e)
+        rules.value = []
+      }
     }
   }
 })
@@ -98,7 +118,10 @@ function initializeMatrix() {
       for (const [key, arr] of Object.entries(parsed)) {
         selectionMatrix.value[key] = new Set(arr as number[])
       }
-    } catch(e) {}
+    } catch(e) {
+      console.error('Failed to parse rulesSelection from localStorage:', e, savedSelection)
+      selectionMatrix.value = {}
+    }
   }
 }
 
