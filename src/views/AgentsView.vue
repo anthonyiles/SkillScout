@@ -27,9 +27,14 @@ onMounted(() => {
   const savedAgents = localStorage.getItem('agents')
   if (savedAgents) {
     try {
-      agents.value = JSON.parse(savedAgents)
+      const parsed = JSON.parse(savedAgents)
+      if (Array.isArray(parsed) && parsed.every(a => a.id && a.name && a.skillsPath !== undefined && a.rulesPath !== undefined)) {
+        agents.value = parsed
+      } else {
+        throw new Error('Invalid agents data format')
+      }
     } catch (e) {
-      console.error('Failed to parse agents from localStorage:', e)
+      console.error('Failed to parse or validate agents from localStorage:', e)
       agents.value = [...defaultAgents]
       saveAgents()
     }
@@ -89,7 +94,7 @@ function executeReset() {
         <CardItem v-for="agent in agents" :key="agent.id">
           <template #title>
             <div class="agent-name-input">
-              <input v-model="agent.name" placeholder="Agent Name" />
+              <input v-model="agent.name" placeholder="Agent Name" aria-label="Agent name" />
             </div>
           </template>
           <template #actions>

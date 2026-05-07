@@ -8,7 +8,10 @@ const props = defineProps<{
   label?: string
   placeholder?: string
   type?: string
+  id?: string
 }>()
+
+const inputId = props.id || `input-${Math.random().toString(36).substring(2, 9)}`
 
 const emit = defineEmits<{
   'update:modelValue': [value: string | number]
@@ -19,8 +22,13 @@ function handleInput(event: Event) {
   const value = target.value
 
   if (props.type === 'number') {
-    const numValue = value === '' ? '' : Number(value)
-    emit('update:modelValue', numValue === '' || isNaN(numValue as number) ? '' : numValue)
+    // Preserve intermediate states like "-", ".", or "-."
+    if (/^-?$|^-?\d*\.?\d*$/.test(value) && value !== '') {
+      emit('update:modelValue', value)
+    } else {
+      const numValue = value === '' ? '' : Number(value)
+      emit('update:modelValue', numValue === '' || isNaN(numValue as number) ? '' : numValue)
+    }
   } else {
     emit('update:modelValue', value)
   }
@@ -29,8 +37,9 @@ function handleInput(event: Event) {
 
 <template>
   <div class="form-group" :class="$attrs.class" :style="$attrs.style">
-    <label v-if="label">{{ label }}</label>
+    <label v-if="label" :for="inputId">{{ label }}</label>
     <input
+      :id="inputId"
       :type="type || 'text'"
       :value="modelValue"
       @input="handleInput"

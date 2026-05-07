@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "skills-toolkit",
+        "title": "Skills Toolkit",
         "width": 800,
         "height": 600
       }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { watch, onBeforeUnmount } from 'vue'
+import { watch, onBeforeUnmount, ref } from 'vue'
+import { useFocusTrap } from '@vueuse/integrations/useFocusTrap'
 import BaseButton from './BaseButton.vue'
 
 const props = defineProps<{
@@ -9,6 +10,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits(['close'])
+const modalRef = ref<HTMLElement | null>(null)
+const { activate, deactivate } = useFocusTrap(modalRef)
 
 function close() {
   emit('close')
@@ -23,21 +26,30 @@ function handleKeydown(event: KeyboardEvent) {
 watch(() => props.isOpen, (isOpen) => {
   if (isOpen) {
     window.addEventListener('keydown', handleKeydown)
+    activate()
   } else {
     window.removeEventListener('keydown', handleKeydown)
+    deactivate()
   }
-})
+}, { immediate: true })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
+  deactivate()
 })
 </script>
 
 <template>
   <div v-if="isOpen" class="modal-overlay" @click.self="close">
-    <div class="modal-content glass">
+    <div 
+      ref="modalRef"
+      class="modal-content glass"
+      role="dialog"
+      aria-modal="true"
+      :aria-labelledby="`modal-title-${$.uid}`"
+    >
       <div class="modal-header">
-        <h3 class="text-h2">{{ title }}</h3>
+        <h3 :id="`modal-title-${$.uid}`" class="text-h2">{{ title }}</h3>
         <BaseButton variant="ghost" icon @click="close">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </BaseButton>

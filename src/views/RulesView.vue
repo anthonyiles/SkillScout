@@ -217,6 +217,16 @@ async function applyToProjects() {
 
       for (const agentId of project.agentIds) {
         const agent = availableAgents.value.find(a => a.id === agentId)
+        
+        if (isSelected) {
+          if (!agent) {
+            throw new Error(`Agent "${agentId}" not found for project "${getProjectName(project.path)}".`)
+          }
+          if (!agent.rulesPath) {
+            throw new Error(`Rules target path not configured for agent "${agent.name}" in project "${getProjectName(project.path)}".`)
+          }
+        }
+
         if (agent && agent.rulesPath) {
           if (isSelected) {
             tasks.push({
@@ -299,10 +309,10 @@ async function applyToProjects() {
           <tr v-for="rule in rules" :key="rule.id">
             <td class="skill-info">
               <div class="skill-name">{{ rule.name }}</div>
-              <div class="skill-preview-line" @click="openPreview(rule)" title="Click to view full content">
+              <button type="button" class="preview-button skill-preview-line" @click="openPreview(rule)" title="Click to view full content" aria-label="Preview rule content">
                 {{ truncate(rule.content, 35) }}
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-              </div>
+              </button>
             </td>
             <td v-for="project in projects" :key="project.id" class="checkbox-cell">
               <TickBox 
@@ -415,6 +425,15 @@ async function applyToProjects() {
 
 .skill-preview-line:hover {
   color: var(--accent-primary);
+}
+
+.preview-button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-family: inherit;
 }
 
 .text-secondary {
