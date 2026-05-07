@@ -11,7 +11,18 @@ const props = defineProps<{
   id?: string
 }>()
 
-const inputId = props.id || `input-${Math.random().toString(36).substring(2, 9)}`
+import { computed } from 'vue'
+
+const props = defineProps<{
+  modelValue: string | number
+  label?: string
+  placeholder?: string
+  type?: string
+  id?: string
+}>()
+
+const fallbackInputId = `input-${Math.random().toString(36).substring(2, 9)}`
+const inputId = computed(() => props.id || fallbackInputId)
 
 const emit = defineEmits<{
   'update:modelValue': [value: string | number]
