@@ -1,0 +1,100 @@
+:root {
+  --bg-base: #121212;
+  --bg-surface: #1e1e1e;
+  --bg-surface-hover: #2a2a2a;
+  
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  
+  --accent-primary: #8b5cf6;
+  --accent-primary-hover: #7c3aed;
+  
+  --accent-danger: #ef4444;
+  --accent-success: #10b981;
+  
+  --border-color: #333333;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 24px;
+  
+  --transition-fast: 0.2s ease;
+  
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden; /* App should not scroll globally, inner sections will */
+}
+
+a {
+  color: var(--accent-primary);
+  text-decoration: none;
+}
+
+button {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+  transition: all var(--transition-fast);
+}
+
+button:hover {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+button.primary {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+button.primary:hover {
+  background: var(--accent-primary-hover);
+}
+
+input {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.85rem;
+  width: 100%;
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+input:focus {
+  border-color: var(--accent-primary);
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: rgba(30, 30, 30, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Typography utilities */
+.text-h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.75rem; }
+.text-h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
+.text-body { font-size: 0.9rem; color: var(--text-secondary); }
