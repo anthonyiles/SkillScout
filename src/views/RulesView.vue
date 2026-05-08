@@ -315,7 +315,7 @@ async function applyToProjects() {
               <button
                 type="button"
                 class="preview-button skill-preview-line"
-                `@click`="openPreview(rule)"
+                @click="openPreview(rule)"
                 title="Click to view full content"
                 :aria-label="`Preview rule: ${rule.name}`"
               >
