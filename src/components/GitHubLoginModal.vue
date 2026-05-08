@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount } from 'vue'
+import { ref, watch, onBeforeUnmount, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useFocusTrap } from '@vueuse/integrations/useFocusTrap'
@@ -18,7 +18,8 @@ const userCode = ref('')
 const verificationUri = ref('')
 const errorMsg = ref('')
 
-let pollingIntervalId: ReturnType<typeof setInterval> | null = null
+let pollingIntervalId: ReturnType<typeof setTimeout> | null = null
+const copySuccessMsg = ref('')
 
 async function startFlow() {
   if (isGenerating.value) return
@@ -40,47 +41,51 @@ async function startFlow() {
 }
 
 function startPolling(deviceCode: string, intervalSeconds: number) {
-  if (pollingIntervalId) clearInterval(pollingIntervalId)
+  if (pollingIntervalId) clearTimeout(pollingIntervalId)
   
   // Convert interval from seconds to milliseconds, adding a slight buffer
-  const intervalMs = (intervalSeconds + 1) * 1000
+  let intervalMs = (intervalSeconds + 1) * 1000
   
-  pollingIntervalId = setInterval(async () => {
-    try {
-      const res: any = await invoke('poll_github_token', { 
-        deviceCode 
-      })
-      
-      if (res.access_token) {
-        // Success!
-        stopPolling()
-        emit('authenticated')
-        close()
-      } else if (res.error) {
-        if (res.error === 'authorization_pending') {
-          // Keep waiting
-        } else if (res.error === 'slow_down') {
-          // In a real app we'd increase the interval dynamically, 
-          // but for simplicity we'll just keep polling with the current one 
-          // (or you could implement dynamic interval adjustments here)
-        } else if (res.error === 'expired_token') {
-          errorMsg.value = 'The code expired. Please try again.'
+  const poll = () => {
+    pollingIntervalId = setTimeout(async () => {
+      try {
+        const res: any = await invoke('poll_github_token', { 
+          deviceCode 
+        })
+        
+        if (res.access_token) {
+          // Success!
           stopPolling()
-        } else {
-          errorMsg.value = res.error_description || res.error
-          stopPolling()
+          emit('authenticated')
+          close()
+        } else if (res.error) {
+          if (res.error === 'authorization_pending') {
+            // Keep waiting
+            poll()
+          } else if (res.error === 'slow_down') {
+            intervalMs += 5000
+            poll()
+          } else if (res.error === 'expired_token') {
+            errorMsg.value = 'The code expired. Please try again.'
+            stopPolling()
+          } else {
+            errorMsg.value = res.error_description || res.error
+            stopPolling()
+          }
         }
+      } catch (e: any) {
+        errorMsg.value = e.toString()
+        stopPolling()
       }
-    } catch (e: any) {
-      errorMsg.value = e.toString()
-      stopPolling()
-    }
-  }, intervalMs)
+    }, intervalMs)
+  }
+  
+  poll()
 }
 
 function stopPolling() {
   if (pollingIntervalId) {
-    clearInterval(pollingIntervalId)
+    clearTimeout(pollingIntervalId)
     pollingIntervalId = null
   }
 }
@@ -93,13 +98,27 @@ function openGitHub() {
 
 async function copyCode() {
   if (userCode.value) {
-    await navigator.clipboard.writeText(userCode.value)
+    try {
+      await navigator.clipboard.writeText(userCode.value)
+      copySuccessMsg.value = 'Code copied to clipboard!'
+      setTimeout(() => copySuccessMsg.value = '', 3000)
+    } catch (e: any) {
+      console.error('Clipboard error:', e)
+      errorMsg.value = 'Failed to copy code to clipboard.'
+    }
   }
 }
 
 async function copyUri() {
   if (verificationUri.value) {
-    await navigator.clipboard.writeText(verificationUri.value)
+    try {
+      await navigator.clipboard.writeText(verificationUri.value)
+      copySuccessMsg.value = 'URL copied to clipboard!'
+      setTimeout(() => copySuccessMsg.value = '', 3000)
+    } catch (e: any) {
+      console.error('Clipboard error:', e)
+      errorMsg.value = 'Failed to copy URL to clipboard.'
+    }
   }
 }
 
@@ -114,9 +133,10 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 
-watch(() => props.isOpen, (isOpen) => {
+watch(() => props.isOpen, async (isOpen) => {
   if (isOpen) {
     window.addEventListener('keydown', handleKeydown)
+    await nextTick()
     activate()
     startFlow()
   } else {
@@ -126,6 +146,7 @@ watch(() => props.isOpen, (isOpen) => {
     userCode.value = ''
     verificationUri.value = ''
     errorMsg.value = ''
+    isGenerating.value = false
   }
 }, { immediate: true })
 
@@ -166,7 +187,7 @@ onBeforeUnmount(() => {
         <div v-else-if="userCode" class="auth-steps">
           <p class="instructions">
             1. Copy the code below.<br>
-            2. Click "Open GitHub" and paste the code to authorize this application.
+            2. Click "Open GitHub" and paste the code to authorise this application.
           </p>
           
           <div class="code-box">
@@ -179,7 +200,7 @@ onBeforeUnmount(() => {
           <div class="manual-link-container">
             <p class="manual-text">Or manually go to:</p>
             <div class="manual-link-box">
-              <a :href="verificationUri" target="_blank" rel="noopener noreferrer" class="manual-link">{{ verificationUri }}</a>
+              <button type="button" @click="openGitHub" class="manual-link" title="Open GitHub authorization page" aria-label="Open GitHub authorization page">{{ verificationUri }}</button>
               <BaseButton variant="ghost" icon @click="copyUri" title="Copy URL" class="copy-small">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
               </BaseButton>
@@ -189,6 +210,10 @@ onBeforeUnmount(() => {
           <BaseButton class="open-github-btn" @click="openGitHub">
             Open GitHub
           </BaseButton>
+
+          <p v-if="copySuccessMsg" class="success-text">
+            {{ copySuccessMsg }}
+          </p>
           
           <p class="waiting-text">
             <span class="spinner small"></span> Waiting for authorization...
@@ -309,10 +334,21 @@ onBeforeUnmount(() => {
   font-size: 0.85rem;
   text-decoration: none;
   word-break: break-all;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .manual-link:hover {
   text-decoration: underline;
+}
+
+.success-text {
+  color: #50fa7b;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
 }
 
 .copy-small {

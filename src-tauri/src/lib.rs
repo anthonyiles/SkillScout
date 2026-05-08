@@ -21,11 +21,18 @@ pub struct Skill {
 
 #[derive(Serialize, Deserialize)]
 pub struct DeviceAuthResponse {
+    #[serde(default)]
     device_code: String,
+    #[serde(default)]
     user_code: String,
+    #[serde(default)]
     verification_uri: String,
+    #[serde(default)]
     expires_in: u64,
+    #[serde(default)]
     interval: u64,
+    error: Option<String>,
+    error_description: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -344,7 +351,10 @@ async fn check_github_auth(app: tauri::AppHandle) -> Result<bool, String> {
         Err(_) => return Ok(false),
     };
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|_| "Failed to build client".to_string())?;
     let res = client.get(GITHUB_USER_URL)
         .header("User-Agent", "SkillScout-App")
         .header("Authorization", format!("Bearer {}", token))
@@ -357,7 +367,7 @@ async fn check_github_auth(app: tauri::AppHandle) -> Result<bool, String> {
 
 #[tauri::command]
 async fn start_github_device_flow() -> Result<DeviceAuthResponse, String> {
-    let client_id = std::env::var("VITE_GITHUB_CLIENT_ID").unwrap_or_default();
+    let client_id = std::env::var("GITHUB_CLIENT_ID").unwrap_or_default();
     if client_id.is_empty() || client_id == "your_sandbox_client_id_here" {
         return Err("GitHub Client ID is missing or invalid in configuration.".to_string());
     }
@@ -373,13 +383,35 @@ async fn start_github_device_flow() -> Result<DeviceAuthResponse, String> {
         .await
         .map_err(|_| "Network error while starting authentication flow.".to_string())?;
 
-    let auth_res = res.json::<DeviceAuthResponse>().await.map_err(|_| "Failed to process GitHub's response.".to_string())?;
+    let status = res.status();
+    let body_text = res.text().await.map_err(|_| "Failed to read response body.".to_string())?;
+
+    if !status.is_success() {
+        if let Ok(err_json) = serde_json::from_str::<serde_json::Value>(&body_text) {
+            if let Some(err_desc) = err_json.get("error_description").and_then(|v| v.as_str()) {
+                return Err(err_desc.to_string());
+            } else if let Some(err) = err_json.get("error").and_then(|v| v.as_str()) {
+                return Err(err.to_string());
+            }
+        }
+        return Err(format!("GitHub API error: {}", status));
+    }
+
+    let auth_res = serde_json::from_str::<DeviceAuthResponse>(&body_text).map_err(|_| "Failed to process GitHub's response.".to_string())?;
+    
+    if auth_res.error.is_some() {
+        return Err(auth_res.error_description.clone().unwrap_or_else(|| auth_res.error.clone().unwrap()));
+    }
+    
     Ok(auth_res)
 }
 
 #[tauri::command]
 async fn poll_github_token(app: tauri::AppHandle, device_code: String) -> Result<TokenResponse, String> {
-    let client_id = std::env::var("VITE_GITHUB_CLIENT_ID").unwrap_or_default();
+    let client_id = std::env::var("GITHUB_CLIENT_ID").unwrap_or_default();
+    if client_id.is_empty() || client_id == "your_sandbox_client_id_here" {
+        return Err("GitHub Client ID is missing or invalid in configuration.".to_string());
+    }
 
     let client = reqwest::Client::new();
     let res = client.post(GITHUB_OAUTH_TOKEN_URL)
