@@ -8,8 +8,8 @@ const route = useRoute()
 <template>
   <nav class="sidebar glass">
     <div class="logo">
-      <img :src="logoUrl" alt="SkillsKit Logo" class="logo-img" />
-      <h2>SkillsKit</h2>
+      <img :src="logoUrl" alt="SkillScout Logo" class="logo-img" />
+      <h2>SkillScout</h2>
     </div>
 
     <div class="links">
