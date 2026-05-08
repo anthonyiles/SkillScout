@@ -5,6 +5,10 @@ use tauri::Manager;
 use serde::{Serialize, Deserialize};
 use std::fs;
 
+const GITHUB_DEVICE_CODE_URL: &str = "https://github.com/login/device/code";
+const GITHUB_OAUTH_TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
+const GITHUB_USER_URL: &str = "https://api.github.com/user";
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Skill {
     id: String,
@@ -13,6 +17,24 @@ pub struct Skill {
     description: String,
     file_path: String,
     content: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct DeviceAuthResponse {
+    device_code: String,
+    user_code: String,
+    verification_uri: String,
+    expires_in: u64,
+    interval: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct TokenResponse {
+    access_token: Option<String>,
+    token_type: Option<String>,
+    scope: Option<String>,
+    error: Option<String>,
+    error_description: Option<String>,
 }
 
 #[tauri::command]
@@ -261,11 +283,136 @@ fn get_project_files(project_path: String, sub_folders: Vec<String>) -> Vec<Stri
     files
 }
 
+fn get_token_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|_| "Failed to get app data dir".to_string())?;
+    if !app_data_dir.exists() {
+        fs::create_dir_all(&app_data_dir).map_err(|_| "Failed to create app data dir".to_string())?;
+    }
+    Ok(app_data_dir.join(".github_token"))
+}
+
+fn save_token(app: &tauri::AppHandle, token: &str) -> Result<(), String> {
+    if let Ok(entry) = keyring::Entry::new("skillscout", "github_token") {
+        if entry.set_password(token).is_ok() {
+            return Ok(());
+        }
+    }
+
+    let path = get_token_path(app)?;
+    fs::write(&path, token).map_err(|_| "Failed to write secure token file".to_string())?;
+    
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = fs::metadata(&path) {
+            let mut perms = meta.permissions();
+            perms.set_mode(0o600);
+            let _ = fs::set_permissions(&path, perms);
+        }
+    }
+    
+    Ok(())
+}
+
+fn load_token(app: &tauri::AppHandle) -> Result<String, String> {
+    if let Ok(entry) = keyring::Entry::new("skillscout", "github_token") {
+        if let Ok(token) = entry.get_password() {
+            return Ok(token);
+        }
+    }
+
+    let path = get_token_path(app)?;
+    fs::read_to_string(&path).map_err(|_| "Token not found".to_string())
+}
+
+#[tauri::command]
+async fn logout_github(app: tauri::AppHandle) -> Result<(), String> {
+    if let Ok(entry) = keyring::Entry::new("skillscout", "github_token") {
+        let _ = entry.delete_credential();
+    }
+
+    if let Ok(path) = get_token_path(&app) {
+        let _ = fs::remove_file(path);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn check_github_auth(app: tauri::AppHandle) -> Result<bool, String> {
+    let token = match load_token(&app) {
+        Ok(t) => t,
+        Err(_) => return Ok(false),
+    };
+
+    let client = reqwest::Client::new();
+    let res = client.get(GITHUB_USER_URL)
+        .header("User-Agent", "SkillScout-App")
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .map_err(|_| "Network error while verifying GitHub connection.".to_string())?;
+
+    Ok(res.status().is_success())
+}
+
+#[tauri::command]
+async fn start_github_device_flow() -> Result<DeviceAuthResponse, String> {
+    let client_id = std::env::var("VITE_GITHUB_CLIENT_ID").unwrap_or_default();
+    if client_id.is_empty() || client_id == "your_sandbox_client_id_here" {
+        return Err("GitHub Client ID is missing or invalid in configuration.".to_string());
+    }
+
+    let client = reqwest::Client::new();
+    let res = client.post(GITHUB_DEVICE_CODE_URL)
+        .header("Accept", "application/json")
+        .query(&[
+            ("client_id", &client_id),
+            ("scope", &"repo".to_string())
+        ])
+        .send()
+        .await
+        .map_err(|_| "Network error while starting authentication flow.".to_string())?;
+
+    let auth_res = res.json::<DeviceAuthResponse>().await.map_err(|_| "Failed to process GitHub's response.".to_string())?;
+    Ok(auth_res)
+}
+
+#[tauri::command]
+async fn poll_github_token(app: tauri::AppHandle, device_code: String) -> Result<TokenResponse, String> {
+    let client_id = std::env::var("VITE_GITHUB_CLIENT_ID").unwrap_or_default();
+
+    let client = reqwest::Client::new();
+    let res = client.post(GITHUB_OAUTH_TOKEN_URL)
+        .header("Accept", "application/json")
+        .query(&[
+            ("client_id", &client_id),
+            ("device_code", &device_code),
+            ("grant_type", &"urn:ietf:params:oauth:grant-type:device_code".to_string()),
+        ])
+        .send()
+        .await
+        .map_err(|_| "Network error while polling for access token.".to_string())?;
+
+    let token_res = res.json::<TokenResponse>().await.map_err(|_| "Failed to process GitHub's response.".to_string())?;
+    
+    // Securely save the token if it was returned
+    if let Some(token) = &token_res.access_token {
+        save_token(&app, token)?;
+    }
+    
+    Ok(token_res)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    dotenvy::dotenv().ok(); // Load environment variables from .env
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![sync_repo, check_existing, apply_skills, get_project_files])
+        .invoke_handler(tauri::generate_handler![
+            sync_repo, check_existing, apply_skills, get_project_files, 
+            start_github_device_flow, poll_github_token, check_github_auth, logout_github
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

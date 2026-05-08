@@ -1,8 +1,35 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { invoke } from '@tauri-apps/api/core'
 import logoUrl from '../assets/logo.png'
+import GitHubLoginModal from './GitHubLoginModal.vue'
 
 const route = useRoute()
+const isGitHubModalOpen = ref(false)
+const isAuthenticated = ref(false)
+
+onMounted(async () => {
+  try {
+    isAuthenticated.value = await invoke('check_github_auth')
+  } catch (e) {
+    console.error('Failed to verify GitHub auth:', e)
+    isAuthenticated.value = false
+  }
+})
+
+function handleAuthenticated() {
+  isAuthenticated.value = true
+}
+
+async function disconnectGitHub() {
+  try {
+    await invoke('logout_github')
+    isAuthenticated.value = false
+  } catch (e) {
+    console.error('Failed to log out:', e)
+  }
+}
 </script>
 
 <template>
@@ -43,6 +70,32 @@ const route = useRoute()
         Settings
       </router-link>
     </div>
+
+    <div class="mt-auto">
+      <button 
+        v-if="!isAuthenticated" 
+        class="github-btn" 
+        @click="isGitHubModalOpen = true"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+        Connect GitHub
+      </button>
+      <button v-else class="github-connected" @click="disconnectGitHub" title="Disconnect GitHub">
+        <div class="connected-content">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+          <span>GitHub Connected</span>
+        </div>
+        <div class="disconnect-hint">
+          Disconnect
+        </div>
+      </button>
+    </div>
+    
+    <GitHubLoginModal 
+      :is-open="isGitHubModalOpen" 
+      @close="isGitHubModalOpen = false"
+      @authenticated="handleAuthenticated"
+    />
   </nav>
 </template>
 
@@ -114,6 +167,81 @@ const route = useRoute()
 }
 
 .nav-link.active svg {
+  opacity: 1;
+}
+
+.mt-auto {
+  margin-top: auto;
+}
+
+.github-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.github-btn:hover {
+  background: var(--bg-base);
+  border-color: var(--accent-primary);
+}
+
+.github-connected {
+  position: relative;
+  width: 100%;
+  padding: 0.75rem;
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  border-radius: var(--radius-md);
+  color: #4ade80;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all var(--transition-fast);
+}
+
+.connected-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: opacity var(--transition-fast);
+}
+
+.disconnect-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 85, 85, 0.15);
+  color: #ff5555;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.github-connected:hover {
+  border-color: rgba(255, 85, 85, 0.3);
+  background: transparent;
+}
+
+.github-connected:hover .connected-content {
+  opacity: 0;
+}
+
+.github-connected:hover .disconnect-hint {
   opacity: 1;
 }
 </style>
