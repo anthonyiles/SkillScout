@@ -119,19 +119,20 @@ async function confirmAndDisconnect() {
 .logo {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  justify-content: center;
+  gap: 0.5rem;
   margin-bottom: 2rem;
-  padding: 0 0.5rem;
+  padding: 0;
 }
 
 .logo-img {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   object-fit: contain;
 }
 
 .logo h2 {
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: 700;
   color: var(--accent-primary);
   letter-spacing: -0.5px;
