@@ -100,11 +100,16 @@ pub async fn check_github_auth(app: tauri::AppHandle) -> Result<bool, String> {
 #[tauri::command]
 pub async fn logout_github(app: tauri::AppHandle) -> Result<(), String> {
     if let Ok(entry) = keyring::Entry::new("skillscout", "github_token") {
-        let _ = entry.delete_credential();
+        entry
+            .delete_credential()
+            .map_err(|e| format!("Failed to clear keyring credential: {}", e))?;
     }
 
-    if let Ok(path) = get_token_path(&app) {
-        let _ = fs::remove_file(path);
+    let path = get_token_path(&app)?;
+    if path.exists() {
+        fs::remove_file(path)
+            .map_err(|e| format!("Failed to remove token file: {}", e))?;
     }
     Ok(())
+}
 }
