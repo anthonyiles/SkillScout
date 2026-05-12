@@ -2,7 +2,7 @@ use std::path::Path;
 use crate::utils::auth::load_token;
 use crate::github::api::{
     parse_repo_url, get_repo_info, create_branch, create_blobs_for_item,
-    create_tree, create_commit, update_branch, create_pull_request
+    create_tree, create_commit, update_branch, create_pull_request, delete_branch
 };
 
 #[tauri::command]
@@ -85,17 +85,21 @@ pub async fn promote_item(
     let new_branch_name = format!("promote-{}-{}", safe_name, timestamp);
     create_branch(&client, &api_base, &token, &new_branch_name, &latest_sha).await?;
 
-    let tree_entries = create_blobs_for_item(&client, &api_base, &token, &item_path, &item_name, &item_type).await?;
+    let process = async {
+        let tree_entries = create_blobs_for_item(&client, &api_base, &token, &item_path, &item_name, &item_type).await?;
+        let new_tree_sha = create_tree(&client, &api_base, &token, &latest_sha, tree_entries).await?;
+        let commit_message = format!("Promote {}: {}", item_type, item_name);
+        let new_commit_sha = create_commit(&client, &api_base, &token, &commit_message, &new_tree_sha, &latest_sha).await?;
+        update_branch(&client, &api_base, &token, &new_branch_name, &new_commit_sha).await?;
+        let pr_body = format!("Automated PR to promote the {} `{}` from local environment.", item_type, item_name);
+        create_pull_request(&client, &api_base, &token, &commit_message, &new_branch_name, &default_branch, &pr_body).await
+    };
 
-    let new_tree_sha = create_tree(&client, &api_base, &token, &latest_sha, tree_entries).await?;
-
-    let commit_message = format!("Promote {}: {}", item_type, item_name);
-    let new_commit_sha = create_commit(&client, &api_base, &token, &commit_message, &new_tree_sha, &latest_sha).await?;
-
-    update_branch(&client, &api_base, &token, &new_branch_name, &new_commit_sha).await?;
-
-    let pr_body = format!("Automated PR to promote the {} `{}` from local environment.", item_type, item_name);
-    let html_url = create_pull_request(&client, &api_base, &token, &commit_message, &new_branch_name, &default_branch, &pr_body).await?;
-    
-    Ok(html_url)
+    match process.await {
+        Ok(html_url) => Ok(html_url),
+        Err(e) => {
+            let _ = delete_branch(&client, &api_base, &token, &new_branch_name).await;
+            Err(e)
+        }
+    }
 }

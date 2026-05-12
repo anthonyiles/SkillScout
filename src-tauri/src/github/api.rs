@@ -203,3 +203,16 @@ pub async fn create_pull_request(client: &reqwest::Client, api_base: &str, token
     let pr_info: serde_json::Value = pr_res.json().await.map_err(|e| e.to_string())?;
     Ok(pr_info["html_url"].as_str().ok_or("Failed to get PR URL")?.to_string())
 }
+
+pub async fn delete_branch(client: &reqwest::Client, api_base: &str, token: &str, branch_name: &str) -> Result<(), String> {
+    let delete_ref_url = format!("{}/git/refs/heads/{}", api_base, branch_name);
+    let res = client.delete(&delete_ref_url)
+        .header("User-Agent", "SkillScout-App")
+        .header("Authorization", format!("Bearer {}", token))
+        .send().await.map_err(|e| e.to_string())?;
+
+    if !res.status().is_success() {
+        return Err(format!("Failed to delete branch: {}", res.status()));
+    }
+    Ok(())
+}
