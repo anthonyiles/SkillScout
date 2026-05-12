@@ -34,9 +34,6 @@ pub fn save_token(app: &tauri::AppHandle, token: &str) -> Result<(), String> {
     
     Ok(())
 }
-    
-    Ok(())
-}
 
 pub fn load_token(app: &tauri::AppHandle) -> Result<String, String> {
     if let Ok(entry) = keyring::Entry::new("skillscout", "github_token") {
