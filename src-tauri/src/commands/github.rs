@@ -20,7 +20,10 @@ pub async fn check_pr_status(app: tauri::AppHandle, pr_url: String) -> Result<se
     
     let owner = path_parts[0];
     let repo = path_parts[1];
-    let pull_number = path_parts[3];
+    let pull_number = path_parts[3]
+        .split(&['?', '#'][..])
+        .next()
+        .unwrap_or(path_parts[3]);
 
     let api_url = format!("https://api.github.com/repos/{}/{}/pulls/{}", owner, repo, pull_number);
 
