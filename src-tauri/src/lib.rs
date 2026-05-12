@@ -713,7 +713,7 @@ async fn promote_item(
 
     let (default_branch, latest_sha) = get_repo_info(&client, &api_base, &token).await?;
 
-    let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+    let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
     let safe_name = item_name.replace(|c: char| !c.is_alphanumeric(), "-");
     let new_branch_name = format!("promote-{}-{}", safe_name, timestamp);
     create_branch(&client, &api_base, &token, &new_branch_name, &latest_sha).await?;
