@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { useToast } from '../composables/useToast'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import BaseButton from '../components/BaseButton.vue'
@@ -14,43 +15,33 @@ interface Agent {
   rulesPath: string
 }
 
-const defaultAgents: Agent[] = [
-  { id: 'cursor', name: 'Cursor', skillsPath: '.cursor/skills', rulesPath: '.cursor/rules' },
-  { id: 'jetbrains', name: 'JetBrains AI', skillsPath: '.agents/skills', rulesPath: '.agents/rules' },
-  { id: 'claude', name: 'Claude Code', skillsPath: '.claude/skills', rulesPath: '.claude/rules' }
-]
-
 const agents = ref<Agent[]>([])
-const { success } = useToast()
+const { success, error } = useToast()
 
-onMounted(() => {
-  const savedAgents = localStorage.getItem('agents')
-  if (savedAgents) {
-    try {
-      const parsed = JSON.parse(savedAgents)
-      if (Array.isArray(parsed) && parsed.every(a => a.id && a.name && a.skillsPath !== undefined && a.rulesPath !== undefined)) {
-        agents.value = parsed
-      } else {
-        throw new Error('Invalid agents data format')
-      }
-    } catch (e) {
-      console.error('Failed to parse or validate agents from localStorage:', e)
-      agents.value = [...defaultAgents]
-      saveAgents()
+async function loadAgents() {
+  try {
+    const fetched = await invoke<Agent[]>('get_agents')
+    if (fetched) {
+      agents.value = fetched
     }
-  } else {
-    agents.value = [...defaultAgents]
-    saveAgents()
+  } catch (e) {
+    console.error('Failed to load agents:', e)
   }
-})
-
-function saveAgents() {
-  localStorage.setItem('agents', JSON.stringify(agents.value))
 }
 
-function saveConfig() {
-  saveAgents()
-  success('Agent configurations saved successfully!')
+onMounted(() => {
+  loadAgents()
+})
+
+async function saveConfig() {
+  try {
+    for (const agent of agents.value) {
+      await invoke('save_agent', { agent })
+    }
+    success('Agent configurations saved successfully!')
+  } catch (e: any) {
+    error(typeof e === 'string' ? e : 'Failed to save agents')
+  }
 }
 
 function addAgent() {
@@ -62,8 +53,14 @@ function addAgent() {
   })
 }
 
-function removeAgent(id: string) {
-  agents.value = agents.value.filter(a => a.id !== id)
+async function removeAgent(id: string) {
+  try {
+    await invoke('delete_agent', { id })
+    agents.value = agents.value.filter(a => a.id !== id)
+    success('Agent removed.')
+  } catch (e: any) {
+    error('Failed to remove agent')
+  }
 }
 
 const isConfirmOpen = ref(false)
@@ -72,11 +69,16 @@ function resetToDefaults() {
   isConfirmOpen.value = true
 }
 
-function executeReset() {
-  agents.value = [...defaultAgents]
-  saveAgents()
-  success('Restored default agents.')
-  isConfirmOpen.value = false
+async function executeReset() {
+  try {
+    await invoke('reset_agents_to_defaults')
+    await loadAgents()
+    success('Restored default agents.')
+  } catch (e) {
+    error('Failed to reset to defaults')
+  } finally {
+    isConfirmOpen.value = false
+  }
 }
 </script>
 

@@ -1,15 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Skill {
-    pub id: String,
-    pub name: String,
-    pub folder: String,
-    pub description: String,
-    pub file_path: String,
-    pub content: String,
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct DeviceAuthResponse {
     pub device_code: String,
@@ -37,4 +27,53 @@ pub struct SyncTask {
     pub file_name: String,
     #[serde(default)]
     pub remove: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Agent {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "skillsPath")]
+    pub skills_path: String,
+    #[serde(rename = "rulesPath")]
+    pub rules_path: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Project {
+    pub id: Option<i64>,
+    pub path: String,
+    #[serde(rename = "agentIds")]
+    pub agent_ids: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct RepositoryItem {
+    pub id: String,
+    pub name: String,
+    pub folder: String,
+    pub description: Option<String>,
+    pub file_path: String,
+    pub content: String,
+    pub sha: String,
+    pub last_synced: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ItemSelection {
+    pub item_id: String,
+    pub project_id: i64,
+    pub applied_sha: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct PromotedItem {
+    pub id: Option<i64>,
+    pub name: String,
+    pub path: String,
+    #[serde(rename = "itemType")]
+    pub item_type: String,
+    pub repository_item_id: Option<String>,
+    pub url: Option<String>,
+    pub branch: String,
 }

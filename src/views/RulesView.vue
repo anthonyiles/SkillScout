@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { useToast } from '../composables/useToast'
 
 interface Skill {
@@ -25,6 +26,12 @@ interface Agent {
   rulesPath: string
 }
 
+interface ItemSelection {
+  item_id: string
+  project_id: number
+  applied_sha: string | null
+}
+
 const rules = ref<Skill[]>([])
 const projects = ref<Project[]>([])
 const availableAgents = ref<Agent[]>([])
@@ -44,6 +51,8 @@ const selectionMatrix = ref<Record<string, Set<number>>>({})
 const activeRule = ref<Skill | null>(null)
 const isModalOpen = ref(false)
 
+let unlistenSync: () => void;
+
 function openPreview(rule: Skill) {
   activeRule.value = rule
   isModalOpen.value = true
@@ -55,105 +64,82 @@ function truncate(str: string, length: number) {
   return clean.length > length ? clean.substring(0, length) + '...' : clean
 }
 
-onMounted(() => {
-  // Load projects from local storage
-  const savedProjects = localStorage.getItem('projects')
-  if (savedProjects) {
-    try {
-      projects.value = JSON.parse(savedProjects)
-    } catch (e) {
-      console.error('Failed to parse projects from localStorage:', e)
-      projects.value = []
-    }
+async function loadData() {
+  try {
+    const p = await invoke<Project[]>('get_projects')
+    if (p) projects.value = p
+  } catch (e) {
+    console.error('Failed to load projects:', e)
   }
 
-  const savedAgents = localStorage.getItem('agents')
-  if (savedAgents) {
-    try {
-      availableAgents.value = JSON.parse(savedAgents)
-    } catch (e) {
-      console.error('Failed to parse agents from localStorage:', e)
-      availableAgents.value = []
-    }
+  try {
+    const a = await invoke<Agent[]>('get_agents')
+    if (a) availableAgents.value = a
+  } catch (e) {
+    console.error('Failed to load agents:', e)
   }
 
-  // Load cached rules from local storage
-  const savedRules = localStorage.getItem('rules')
-  if (savedRules) {
-    try {
-      rules.value = JSON.parse(savedRules)
-      initializeMatrix()
-    } catch (e) {
-      console.error('Failed to parse rules from localStorage:', e)
-      rules.value = []
+  try {
+    const fetchedRules = await invoke<Skill[]>('get_repository_items', { folder: 'rules' })
+    if (fetchedRules) {
+      rules.value = fetchedRules
+      await initializeMatrix()
     }
-  } else {
-    // Check if we already synced via Skills page
-    const allData = localStorage.getItem('all_repo_data')
-    if (allData) {
-      try {
-        const parsedData: Skill[] = JSON.parse(allData)
-        rules.value = parsedData.filter(s => s.folder === 'rules')
-        localStorage.setItem('rules', JSON.stringify(rules.value))
-        initializeMatrix()
-      } catch (e) {
-        console.error('Failed to parse all_repo_data from localStorage:', e)
-        rules.value = []
-      }
-    }
+  } catch (e) {
+    console.error('Failed to load rules:', e)
   }
+}
+
+onMounted(async () => {
+  await loadData()
+  
+  unlistenSync = await listen('repo_synced', () => {
+    loadData() // Refresh if background task syncs
+  })
 })
 
-function initializeMatrix() {
+onUnmounted(() => {
+  if (unlistenSync) unlistenSync()
+})
+
+async function initializeMatrix() {
   rules.value.forEach(rule => {
     if (!selectionMatrix.value[rule.id]) {
       selectionMatrix.value[rule.id] = new Set()
     }
   })
   
-  const savedSelection = localStorage.getItem('rulesSelection')
-  if (savedSelection) {
-    try {
-      const parsed = JSON.parse(savedSelection)
-      for (const [key, arr] of Object.entries(parsed)) {
-        selectionMatrix.value[key] = new Set(arr as number[])
+  try {
+    const selections = await invoke<ItemSelection[]>('get_item_selections')
+    if (selections) {
+      for (const sel of selections) {
+        if (!selectionMatrix.value[sel.item_id]) {
+          selectionMatrix.value[sel.item_id] = new Set()
+        }
+        selectionMatrix.value[sel.item_id].add(sel.project_id)
       }
-    } catch(e) {
-      console.error('Failed to parse rulesSelection from localStorage:', e, savedSelection)
-      selectionMatrix.value = {}
     }
+  } catch (e) {
+    console.error('Failed to load selections:', e)
   }
 }
 
 async function syncRepo() {
   loading.value = true
   
-  const repoUrl = localStorage.getItem('repoUrl')
-  if (!repoUrl) {
-    error('Please configure a repository URL in Settings first.')
-    loading.value = false
-    return
-  }
-
   try {
-    const fetchedData: Skill[] = await invoke('sync_repo', { repoUrl })
-    const filteredRules = fetchedData.filter(s => s.folder === 'rules')
-    
-    if (filteredRules.length === 0) {
-      error('Repository synced, but no rules were found in the /rules folder.')
-    } else {
-      success(`Successfully synced ${filteredRules.length} rules!`)
+    const repoUrl = await invoke<string | null>('get_setting', { key: 'repoUrl' })
+    if (!repoUrl) {
+      error('Please configure a repository URL in Settings first.')
+      loading.value = false
+      return
     }
-    rules.value = filteredRules
+
+    const count = await invoke<number>('sync_repo', { repoUrl })
+    success(`Successfully synced repository! (${count} items processed)`)
     
-    // Also store all fetched data globally
-    localStorage.setItem('all_repo_data', JSON.stringify(fetchedData))
-    localStorage.setItem('rules', JSON.stringify(filteredRules))
-    
-    // Also update skills cache for the other tab
-    localStorage.setItem('skills', JSON.stringify(fetchedData.filter(s => s.folder === 'skills')))
-    
-    initializeMatrix()
+    // Refresh local data
+    await loadData()
   } catch (err: any) {
     error(typeof err === 'string' ? err : err.message || JSON.stringify(err))
   } finally {
@@ -161,7 +147,7 @@ async function syncRepo() {
   }
 }
 
-function toggleSelection(ruleId: string, projectId: number) {
+async function toggleSelection(ruleId: string, projectId: number) {
   if (!selectionMatrix.value[ruleId]) {
     selectionMatrix.value[ruleId] = new Set()
   }
@@ -172,15 +158,15 @@ function toggleSelection(ruleId: string, projectId: number) {
     selectionMatrix.value[ruleId].add(projectId)
   }
   
-  saveSelection()
+  try {
+    await invoke('toggle_item_selection', { itemId: ruleId, projectId })
+  } catch (e) {
+    console.error('Failed to toggle selection in DB', e)
+  }
 }
 
-function saveSelection() {
-  const serialized: Record<string, number[]> = {}
-  for (const [key, set] of Object.entries(selectionMatrix.value)) {
-    serialized[key] = Array.from(set)
-  }
-  localStorage.setItem('rulesSelection', JSON.stringify(serialized))
+async function saveSelection() {
+  // Now handled dynamically on toggle
 }
 
 function isSelected(ruleId: string, projectId: number) {

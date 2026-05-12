@@ -1,21 +1,30 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { useToast } from '../composables/useToast'
 import BaseButton from '../components/BaseButton.vue'
 import InputField from '../components/InputField.vue'
 import PageLayout from '../components/PageLayout.vue'
 
 const repoUrl = ref('')
-const { success } = useToast()
+const { success, error } = useToast()
 
-onMounted(() => {
-  const savedRepo = localStorage.getItem('repoUrl')
-  if (savedRepo) repoUrl.value = savedRepo
+onMounted(async () => {
+  try {
+    const savedRepo = await invoke<string | null>('get_setting', { key: 'repoUrl' })
+    if (savedRepo) repoUrl.value = savedRepo
+  } catch (e: any) {
+    console.error('Failed to load settings:', e)
+  }
 })
 
-function saveConfig() {
-  localStorage.setItem('repoUrl', repoUrl.value)
-  success('Configuration saved successfully!')
+async function saveConfig() {
+  try {
+    await invoke('set_setting', { key: 'repoUrl', value: repoUrl.value })
+    success('Configuration saved successfully!')
+  } catch (e: any) {
+    error(typeof e === 'string' ? e : 'Failed to save configuration')
+  }
 }
 </script>
 
