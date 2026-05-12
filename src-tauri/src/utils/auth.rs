@@ -11,24 +11,29 @@ pub fn get_token_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 }
 
 pub fn save_token(app: &tauri::AppHandle, token: &str) -> Result<(), String> {
-    // Attempt keyring, but don't rely solely on it since it can fail on subsequent reads in some environments
-    if let Ok(entry) = keyring::Entry::new("skillscout", "github_token") {
-        let _ = entry.set_password(token);
-    }
+    let keyring_saved = if let Ok(entry) = keyring::Entry::new("skillscout", "github_token") {
+        entry.set_password(token).is_ok()
+    } else {
+        false
+    };
 
-    // Always use the secure file fallback to ensure persistence
-    let path = get_token_path(app)?;
-    fs::write(&path, token).map_err(|e| format!("Failed to write secure token file: {}", e))?;
-    
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        if let Ok(meta) = fs::metadata(&path) {
+    if !keyring_saved {
+        let path = get_token_path(app)?;
+        fs::write(&path, token).map_err(|e| format!("Failed to write secure token file: {}", e))?;
+        
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let meta = fs::metadata(&path).map_err(|e| format!("Failed to stat token file: {}", e))?;
             let mut perms = meta.permissions();
             perms.set_mode(0o600);
-            let _ = fs::set_permissions(&path, perms);
+            fs::set_permissions(&path, perms)
+                .map_err(|e| format!("Failed to harden token file permissions: {}", e))?;
         }
     }
+    
+    Ok(())
+}
     
     Ok(())
 }
