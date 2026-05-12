@@ -112,4 +112,3 @@ pub async fn logout_github(app: tauri::AppHandle) -> Result<(), String> {
     }
     Ok(())
 }
-}
