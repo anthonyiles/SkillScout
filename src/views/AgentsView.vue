@@ -45,8 +45,9 @@ async function saveConfig() {
 }
 
 function addAgent() {
+  const uniqueId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   agents.value.push({ 
-    id: `custom-${Date.now()}`, 
+    id: uniqueId, 
     name: 'New Agent', 
     skillsPath: '', 
     rulesPath: '' 

@@ -167,9 +167,7 @@ async function toggleSelection(skillId: string, projectId: number) {
   }
 }
 
-async function saveSelection() {
-  // Now handled dynamically on toggle
-}
+// Selection persistence is handled per-toggle via invoke('toggle_item_selection')
 
 async function scanLocal(silent = false) {
   scanning.value = true
@@ -203,9 +201,11 @@ async function scanLocal(silent = false) {
         
         if (isNowSelected && !wasSelected) {
           selectionMatrix.value[skill.id].add(project.id);
+          await invoke('toggle_item_selection', { itemId: skill.id, projectId: project.id });
           updated = true;
         } else if (!isNowSelected && wasSelected) {
           selectionMatrix.value[skill.id].delete(project.id);
+          await invoke('toggle_item_selection', { itemId: skill.id, projectId: project.id });
           updated = true;
         }
       }
@@ -214,9 +214,7 @@ async function scanLocal(silent = false) {
     }
   }
   
-  if (updated) {
-    saveSelection();
-  }
+  // Changes already persisted per-toggle above
   if (!silent) {
     if (updated) success('Matched tickboxes with local files!')
     else success('Tickboxes are already up to date.')

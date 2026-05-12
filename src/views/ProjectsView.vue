@@ -20,7 +20,7 @@ interface Project {
   id: number | null
   path: string
   agentIds: string[]
-  _tempId?: number
+  _tempId?: string
 }
 
 const projects = ref<Project[]>([])
@@ -31,7 +31,7 @@ async function loadData() {
   try {
     const fetchedProjects = await invoke<Project[]>('get_projects')
     if (fetchedProjects && fetchedProjects.length > 0) {
-      projects.value = fetchedProjects.map(p => ({ ...p, _tempId: p.id || Date.now() }))
+      projects.value = fetchedProjects.map(p => ({ ...p, _tempId: p.id?.toString() || crypto.randomUUID() }))
     } else {
       addProject()
     }
@@ -62,7 +62,7 @@ async function saveConfig() {
       const saved = await invoke<Project>('save_project', { 
         project: { id: project.id, path: project.path, agentIds: project.agentIds } 
       })
-      updatedProjects.push({ ...saved, _tempId: saved.id })
+      updatedProjects.push({ ...saved, _tempId: saved.id?.toString() || crypto.randomUUID() })
     }
     projects.value = updatedProjects
     if (projects.value.length === 0) addProject()
@@ -73,7 +73,7 @@ async function saveConfig() {
 }
 
 function addProject() {
-  projects.value.push({ id: null, path: '', agentIds: [], _tempId: Date.now() })
+  projects.value.push({ id: null, path: '', agentIds: [], _tempId: crypto.randomUUID() })
 }
 
 async function removeProject(project: Project) {

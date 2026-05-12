@@ -165,9 +165,7 @@ async function toggleSelection(ruleId: string, projectId: number) {
   }
 }
 
-async function saveSelection() {
-  // Now handled dynamically on toggle
-}
+// Selection persistence is handled per-toggle via invoke('toggle_item_selection')
 
 function isSelected(ruleId: string, projectId: number) {
   return selectionMatrix.value[ruleId]?.has(projectId) || false

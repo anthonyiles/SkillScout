@@ -35,7 +35,7 @@ interface PromotedItem {
   id?: number
   name: string
   path: string
-  item_type: string
+  itemType: string
   repository_item_id?: string
   url: string
   branch: string
@@ -217,7 +217,7 @@ async function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) 
   const key = `${project.path}-${item.name}`
   promotingItem.value = key
   try {
-    const prUrl = await invoke<string>('promote_item', {
+    const result = await invoke<{ url: string; branch: string }>('promote_item', {
       repoUrl,
       itemType: item.type,
       itemName: item.name,
@@ -228,9 +228,9 @@ async function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) 
     const pItem: PromotedItem = {
       name: item.name,
       path: project.path,
-      item_type: item.type,
-      url: prUrl,
-      branch: `feat/add-${item.name.replace('.md', '')}-${Date.now()}` // This is a guess since we don't return branch from promote_item right now, but it's ok for DB tracking.
+      itemType: item.type,
+      url: result.url,
+      branch: result.branch
     }
     const saved = await invoke<PromotedItem>('add_promoted_item', { item: pItem })
     

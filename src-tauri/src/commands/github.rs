@@ -63,7 +63,7 @@ pub async fn promote_item(
     item_name: String,
     project_path: String,
     sub_folders: Vec<String>,
-) -> Result<String, String> {
+) -> Result<serde_json::Value, String> {
     let token = load_token(&app)?;
     let (owner, repo) = parse_repo_url(&repo_url).ok_or("Invalid repository URL format.")?;
 
@@ -111,7 +111,10 @@ pub async fn promote_item(
     };
 
     match process.await {
-        Ok(html_url) => Ok(html_url),
+        Ok(html_url) => Ok(serde_json::json!({
+            "url": html_url,
+            "branch": new_branch_name
+        })),
         Err(e) => {
             let _ = delete_branch(&client, &api_base, &token, &new_branch_name).await;
             Err(e)

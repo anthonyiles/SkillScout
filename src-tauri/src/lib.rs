@@ -49,7 +49,9 @@ pub fn run() {
 
                     if !repo_url.is_empty() {
                         let state = handle.state::<db::AppState>();
-                        let _ = commands::sync::sync_repo(handle.clone(), state, repo_url).await;
+                        if let Err(e) = commands::sync::sync_repo(handle.clone(), state, repo_url.clone()).await {
+                            eprintln!("[background sync] failed to sync repo '{}': {}", repo_url, e);
+                        }
                     }
                 }
             });

@@ -59,14 +59,17 @@ pub fn get_item_selections(state: State<'_, AppState>) -> Result<Vec<ItemSelecti
 pub fn toggle_item_selection(state: State<'_, AppState>, item_id: String, project_id: i64) -> Result<(), String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     
-    // Check if it exists
-    let mut stmt = conn.prepare("SELECT 1 FROM item_selections WHERE item_id = ?1 AND project_id = ?2").map_err(|e| e.to_string())?;
-    let exists = stmt.exists(params![item_id, project_id]).map_err(|e| e.to_string())?;
-
-    if exists {
-        conn.execute("DELETE FROM item_selections WHERE item_id = ?1 AND project_id = ?2", params![item_id, project_id]).map_err(|e| e.to_string())?;
-    } else {
-        conn.execute("INSERT INTO item_selections (item_id, project_id) VALUES (?1, ?2)", params![item_id, project_id]).map_err(|e| e.to_string())?;
+    // Try to delete first; if no rows affected, insert
+    let deleted = conn.execute(
+        "DELETE FROM item_selections WHERE item_id = ?1 AND project_id = ?2",
+        params![item_id, project_id]
+    ).map_err(|e| e.to_string())?;
+    
+    if deleted == 0 {
+        conn.execute(
+            "INSERT INTO item_selections (item_id, project_id) VALUES (?1, ?2)",
+            params![item_id, project_id]
+        ).map_err(|e| e.to_string())?;
     }
     
     Ok(())

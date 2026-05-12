@@ -86,33 +86,34 @@ pub fn reset_agents_to_defaults(state: State<'_, AppState>) -> Result<(), String
 #[command]
 pub fn get_projects(state: State<'_, AppState>) -> Result<Vec<Project>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let mut stmt = conn.prepare("SELECT id, path FROM projects").map_err(|e| e.to_string())?;
-    
-    let projects_iter = stmt.query_map([], |row| {
+    let mut stmt = conn.prepare(
+        "SELECT p.id, p.path, pa.agent_id \
+         FROM projects p \
+         LEFT JOIN project_agents pa ON p.id = pa.project_id"
+    ).map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map([], |row| {
         let id: i64 = row.get(0)?;
         let path: String = row.get(1)?;
-        Ok((id, path))
+        let agent_id: Option<String> = row.get(2)?;
+        Ok((id, path, agent_id))
     }).map_err(|e| e.to_string())?;
 
-    let mut projects = Vec::new();
-    for p in projects_iter {
-        let (id, path) = p.map_err(|e| e.to_string())?;
-        
-        let mut agent_stmt = conn.prepare("SELECT agent_id FROM project_agents WHERE project_id = ?1").map_err(|e| e.to_string())?;
-        let agent_ids_iter = agent_stmt.query_map(params![id], |row| row.get::<_, String>(0)).map_err(|e| e.to_string())?;
-        
-        let mut agent_ids = Vec::new();
-        for a_id in agent_ids_iter {
-            agent_ids.push(a_id.map_err(|e| e.to_string())?);
-        }
+    let mut map: std::collections::HashMap<i64, Project> = std::collections::HashMap::new();
+    let mut order: Vec<i64> = Vec::new();
 
-        projects.push(Project {
-            id: Some(id),
-            path,
-            agent_ids,
+    for row in rows {
+        let (id, path, agent_id) = row.map_err(|e| e.to_string())?;
+        let project = map.entry(id).or_insert_with(|| {
+            order.push(id);
+            Project { id: Some(id), path, agent_ids: Vec::new() }
         });
+        if let Some(aid) = agent_id {
+            project.agent_ids.push(aid);
+        }
     }
-    Ok(projects)
+
+    Ok(order.into_iter().filter_map(|id| map.remove(&id)).collect())
 }
 
 #[command]
