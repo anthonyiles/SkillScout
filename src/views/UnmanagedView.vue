@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { useToast } from '../composables/useToast'
 import BaseButton from '../components/BaseButton.vue'
 import PageLayout from '../components/PageLayout.vue'
@@ -36,8 +37,11 @@ const knownSkills = ref<Set<string>>(new Set())
 const knownRules = ref<Set<string>>(new Set())
 const scanning = ref(false)
 const loading = ref(true)
+const promotedItems = ref<Record<string, string>>({})
+const checkingPrs = ref<Set<string>>(new Set())
+const mergedPrs = ref<Set<string>>(new Set())
 
-const { info, success, error } = useToast()
+const { success, error } = useToast()
 
 function getProjectName(path: string) {
   if (!path) return 'New Project'
@@ -160,7 +164,65 @@ async function scanLocal() {
 }
 
 onMounted(async () => {
+  const savedPromoted = localStorage.getItem('promotedItems')
+  if (savedPromoted) {
+    try {
+      promotedItems.value = JSON.parse(savedPromoted)
+    } catch (e) {
+      console.error('Failed to parse promoted items:', e)
+    }
+  }
+  
+  // Scan immediately so UI isn't blank
   await scanLocal()
+  
+  // Background check PRs
+  const repoUrl = localStorage.getItem('repoUrl')
+  let syncNeeded = false
+  let changed = false
+  
+  await Promise.all(Object.entries(promotedItems.value).map(async ([key, url]) => {
+    checkingPrs.value.add(key)
+    try {
+      const res = await invoke<any>('check_pr_status', { prUrl: url })
+      if (res.state !== 'open') {
+        delete promotedItems.value[key]
+        changed = true
+        if (res.merged) {
+          mergedPrs.value.add(key)
+          syncNeeded = true
+        }
+      }
+    } catch (e) {
+      // Keep on error
+    } finally {
+      checkingPrs.value.delete(key)
+    }
+  }))
+  
+  if (changed) {
+    localStorage.setItem('promotedItems', JSON.stringify(promotedItems.value))
+  }
+  
+  if (syncNeeded && repoUrl) {
+    try {
+      const fetchedSkills: any[] = await invoke('sync_repo', { repoUrl })
+      const filteredSkills = fetchedSkills.filter(s => s.folder === 'skills')
+      const filteredRules = fetchedSkills.filter(s => s.folder === 'rules')
+      
+      localStorage.setItem('all_repo_data', JSON.stringify(fetchedSkills))
+      localStorage.setItem('skills', JSON.stringify(filteredSkills))
+      localStorage.setItem('rules', JSON.stringify(filteredRules))
+      
+      knownSkills.value = new Set(filteredSkills.map(s => s.name))
+      knownRules.value = new Set(filteredRules.map(s => s.name))
+      
+      await scanLocal()
+      success('Background sync complete. Managed items updated.')
+    } catch (e) {
+      console.error('Failed background sync:', e)
+    }
+  }
 })
 
 async function handleManualScan() {
@@ -168,8 +230,44 @@ async function handleManualScan() {
   success('Scan complete!')
 }
 
-function promoteItem(item: UnmanagedItem, _project: ProjectWithLocalItems) {
-  info(`Promoting ${item.type} "${item.name}" is not implemented yet! (Coming soon)`)
+const promotingItem = ref<string | null>(null)
+
+async function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) {
+  const repoUrl = localStorage.getItem('repoUrl')
+  if (!repoUrl) {
+    error('Please configure a repository URL in Settings first.')
+    return
+  }
+  
+  // Reconstruct subFolders from project
+  const subFolders = new Set<string>()
+  for (const agentId of project.agentIds) {
+    const agent = availableAgents.value.find(a => a.id === agentId)
+    if (agent) {
+      if (item.type === 'skill' && agent.skillsPath) subFolders.add(agent.skillsPath)
+      if (item.type === 'rule' && agent.rulesPath) subFolders.add(agent.rulesPath)
+    }
+  }
+
+  promotingItem.value = `${project.id}-${item.name}`
+  try {
+    const prUrl = await invoke<string>('promote_item', {
+      repoUrl,
+      itemType: item.type,
+      itemName: item.name,
+      projectPath: project.path,
+      subFolders: Array.from(subFolders)
+    })
+    
+    success(`Successfully created PR!`)
+    promotedItems.value[`${project.id}-${item.name}`] = prUrl
+    localStorage.setItem('promotedItems', JSON.stringify(promotedItems.value))
+  } catch (e: any) {
+    error(typeof e === 'string' ? e : e.message || 'Failed to promote item')
+    console.error(e)
+  } finally {
+    promotingItem.value = null
+  }
 }
 </script>
 
@@ -208,9 +306,38 @@ function promoteItem(item: UnmanagedItem, _project: ProjectWithLocalItems) {
                   <span class="item-name">{{ item.name }}</span>
                 </div>
               </div>
-              <BaseButton variant="secondary" size="sm" @click="promoteItem(item, project)">
-                Promote
-              </BaseButton>
+              <template v-if="checkingPrs.has(`${project.id}-${item.name}`)">
+                <BaseButton variant="secondary" size="sm" disabled>
+                  <span class="loader small-loader"></span>
+                </BaseButton>
+              </template>
+              <template v-else-if="mergedPrs.has(`${project.id}-${item.name}`)">
+                <BaseButton variant="secondary" size="sm" disabled class="success-btn">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                  Merged!
+                </BaseButton>
+              </template>
+              <template v-else-if="promotedItems[`${project.id}-${item.name}`]">
+                <BaseButton 
+                  variant="primary" 
+                  size="sm" 
+                  @click="openUrl(promotedItems[`${project.id}-${item.name}`])"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                  View PR
+                </BaseButton>
+              </template>
+              <template v-else>
+                <BaseButton 
+                  variant="secondary" 
+                  size="sm" 
+                  :disabled="promotingItem === `${project.id}-${item.name}`"
+                  @click="promoteItem(item, project)"
+                >
+                  <span v-if="promotingItem === `${project.id}-${item.name}`" class="loader small-loader"></span>
+                  <span v-else>Promote</span>
+                </BaseButton>
+              </template>
             </div>
           </div>
         </CardItem>
@@ -300,8 +427,21 @@ function promoteItem(item: UnmanagedItem, _project: ProjectWithLocalItems) {
   animation: spin 1s linear infinite;
 }
 
+.small-loader {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+.success-btn {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.3);
+  background: rgba(74, 222, 128, 0.1);
+  opacity: 1 !important;
 }
 </style>
