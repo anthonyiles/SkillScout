@@ -24,6 +24,10 @@ pub async fn check_pr_status(app: tauri::AppHandle, pr_url: String) -> Result<se
         .split(&['?', '#'][..])
         .next()
         .unwrap_or(path_parts[3]);
+        
+    let pull_number: u64 = pull_number
+        .parse()
+        .map_err(|_| "Invalid PR URL format".to_string())?;
 
     let api_url = format!("https://api.github.com/repos/{}/{}/pulls/{}", owner, repo, pull_number);
 
