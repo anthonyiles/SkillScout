@@ -63,11 +63,19 @@ pub async fn promote_item(
     let token = load_token(&app)?;
     let (owner, repo) = parse_repo_url(&repo_url).ok_or("Invalid repository URL format.")?;
 
-    let base_path = Path::new(&project_path);
+    let base_path = Path::new(&project_path)
+        .canonicalize()
+        .map_err(|e| format!("Invalid project path: {}", e))?;
     let mut item_path = None;
     for folder in sub_folders {
-        let path = base_path.join(&folder).join(&item_name);
-        if path.exists() {
+        let candidate = base_path.join(&folder).join(&item_name);
+        if candidate.exists() {
+            let path = candidate
+                .canonicalize()
+                .map_err(|e| format!("Failed to resolve item path: {}", e))?;
+            if !path.starts_with(&base_path) {
+                return Err("Item path escapes the selected project".into());
+            }
             item_path = Some(path);
             break;
         }
