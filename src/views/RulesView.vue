@@ -141,7 +141,8 @@ async function syncRepo() {
     // Refresh local data
     await loadData()
   } catch (err: any) {
-    error(typeof err === 'string' ? err : err.message || JSON.stringify(err))
+    console.error('Failed to sync repository:', err)
+    error(typeof err === 'string' ? err : 'Failed to sync repository. Please try again.')
   } finally {
     loading.value = false
   }
@@ -251,7 +252,8 @@ async function applyToProjects() {
     await invoke('apply_skills', { tasks })
     success(`Successfully updated rules across your projects!`)
   } catch (err: any) {
-    error(typeof err === 'string' ? err : err.message || JSON.stringify(err))
+    console.error('Failed to apply rules:', err)
+    error(typeof err === 'string' ? err : 'Failed to apply rules to projects.')
   } finally {
     applying.value = false
   }

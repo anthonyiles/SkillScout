@@ -12,7 +12,7 @@ use rusqlite::params;
 
 #[tauri::command]
 pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_url: String) -> Result<usize, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let app_data_dir = app.path().app_data_dir().map_err(|e| { eprintln!("App data dir error: {}", e); "Failed to resolve app data directory".to_string() })?;
     
     let skills = tauri::async_runtime::spawn_blocking(move || {
         if !app_data_dir.exists() {
@@ -151,12 +151,12 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
         read_folder("rules");
         
         Ok::<Vec<RepositoryItem>, String>(skills)
-    }).await.map_err(|e| format!("Task failed to execute: {}", e))??;
+    }).await.map_err(|e| { eprintln!("Spawn blocking error: {}", e); "Background task failed".to_string() })??;
     
     // Save to DB
     let count = skills.len();
-    let mut conn = state.db.lock().map_err(|e| e.to_string())?;
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    let mut conn = state.db.lock().map_err(|e| { eprintln!("Database lock error: {}", e); "Database busy".to_string() })?;
+    let tx = conn.transaction().map_err(|e| { eprintln!("Database transaction error: {}", e); "Database busy".to_string() })?;
     
     // Clear old items not in the newly synced list (or just overwrite)
     let current_ids: Vec<String> = skills.iter().map(|s| s.id.clone()).collect();
@@ -167,9 +167,9 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
     if !current_ids.is_empty() {
         let query = format!("DELETE FROM repository_items WHERE id NOT IN ({})", placeholders);
         let params: Vec<&dyn rusqlite::ToSql> = current_ids.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
-        tx.execute(&query, rusqlite::params_from_iter(params)).map_err(|e| e.to_string())?;
+        tx.execute(&query, rusqlite::params_from_iter(params)).map_err(|e| { eprintln!("Database execute error: {}", e); "Failed to cleanup repository items".to_string() })?;
     } else {
-        tx.execute("DELETE FROM repository_items", []).map_err(|e| e.to_string())?;
+        tx.execute("DELETE FROM repository_items", []).map_err(|e| { eprintln!("Database execute error: {}", e); "Failed to cleanup repository items".to_string() })?;
     }
 
     for skill in skills {
@@ -179,10 +179,10 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
              ON CONFLICT(id) DO UPDATE SET 
              name = ?2, folder = ?3, description = ?4, file_path = ?5, content = ?6, sha = ?7, last_synced = CURRENT_TIMESTAMP",
             params![skill.id, skill.name, skill.folder, skill.description, skill.file_path, skill.content, skill.sha]
-        ).map_err(|e| e.to_string())?;
+        ).map_err(|e| { eprintln!("Database execute error: {}", e); "Failed to save repository item".to_string() })?;
     }
     
-    tx.commit().map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| { eprintln!("Database commit error: {}", e); "Failed to save changes".to_string() })?;
 
     // Inform the frontend of a successful sync
     let _ = app.emit("repo_synced", ());
@@ -262,7 +262,7 @@ pub async fn apply_skills(tasks: Vec<SyncTask>) -> Result<usize, String> {
             }
         }
         Ok::<usize, String>(count)
-    }).await.map_err(|e| format!("Task failed to execute: {}", e))??;
+    }).await.map_err(|e| { eprintln!("Spawn blocking error: {}", e); "Background task failed".to_string() })??;
     
     Ok(count)
 }

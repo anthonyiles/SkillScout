@@ -237,8 +237,8 @@ async function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) 
     success(`Successfully created PR!`)
     promotedItems.value[key] = saved
   } catch (e: any) {
-    error(typeof e === 'string' ? e : e.message || 'Failed to promote item')
-    console.error(e)
+    console.error('Failed to promote item:', e)
+    error(typeof e === 'string' ? e : 'Failed to promote item. Please try again.')
   } finally {
     promotingItem.value = null
   }
