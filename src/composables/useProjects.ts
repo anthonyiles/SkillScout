@@ -7,7 +7,10 @@ export const useProjects = createSharedComposable(() => {
 
   function load() {
     const raw = localStorage.getItem('projects')
-    if (!raw) return
+    if (!raw) {
+      projects.value = []
+      return
+    }
     try {
       const parsed = JSON.parse(raw)
       projects.value = parsed.map((p: any) => ({ ...p, agentIds: p.agentIds ?? [] }))

@@ -13,9 +13,17 @@ use commands::sync::{apply_skills, check_existing, get_project_files, sync_repo}
 pub fn run() {
     dotenvy::dotenv().ok();
 
+    let app_state = match AppState::new() {
+        Ok(state) => state,
+        Err(e) => {
+            eprintln!("Failed to initialize application state: {}", e);
+            std::process::exit(1);
+        }
+    };
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(AppState::new())
+        .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             sync_repo, check_existing, apply_skills, get_project_files,
             start_github_device_flow, poll_github_token, check_github_auth, logout_github,

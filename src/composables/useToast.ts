@@ -9,11 +9,13 @@ export interface Toast {
   type: ToastType
 }
 
+let nextToastId = 0
+
 export const useToast = createSharedComposable(() => {
   const toasts = ref<Toast[]>([])
 
   function showToast(message: string, type: ToastType = 'info', duration = 5000) {
-    const id = Date.now()
+    const id = ++nextToastId
     toasts.value.push({ id, message, type })
     setTimeout(() => removeToast(id), duration)
   }

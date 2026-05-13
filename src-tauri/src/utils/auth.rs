@@ -10,8 +10,12 @@ pub fn save_token(token: &str) -> Result<(), String> {
 }
 
 pub fn load_token() -> Result<String, String> {
-    keyring::Entry::new("skillscout", "github_token")
-        .ok()
-        .and_then(|entry| entry.get_password().ok())
-        .ok_or_else(|| "Not authenticated. Please connect your GitHub account.".to_string())
+    let entry = keyring::Entry::new("skillscout", "github_token")
+        .map_err(|_| "Your system keyring is unavailable. Please ensure a keyring service is running.".to_string())?;
+
+    match entry.get_password() {
+        Ok(token) => Ok(token),
+        Err(keyring::Error::NoEntry) => Err("Not authenticated. Please connect your GitHub account.".to_string()),
+        Err(_) => Err("Your system keyring is unavailable. Please ensure a keyring service is running.".to_string()),
+    }
 }

@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 use base64::{Engine as _, engine::general_purpose};
+use futures::stream::{self, StreamExt};
 
 pub fn parse_repo_url(url: &str) -> Option<(String, String)> {
     let url = url.trim_end_matches(".git").trim();
@@ -123,42 +124,45 @@ pub async fn create_blobs_for_item(
         }
     }
 
-    // Upload all blobs concurrently
+    // Upload all blobs with bounded concurrency
+    const CONCURRENCY_LIMIT: usize = 5;
     let blob_url = format!("{}/git/blobs", api_base);
-    let mut handles = Vec::new();
-    for entry in entries {
-        let client = client.clone();
-        let blob_url = blob_url.clone();
-        let token = token.to_string();
-        let encoded = general_purpose::STANDARD.encode(&entry.content);
-        let repo_path = entry.repo_path.clone();
-        handles.push(tauri::async_runtime::spawn(async move {
-            let res = client.post(&blob_url)
-                .header("User-Agent", "SkillScout-App")
-                .header("Authorization", format!("Bearer {}", token))
-                .json(&serde_json::json!({ "content": encoded, "encoding": "base64" }))
-                .send().await
-                .map_err(|_| "Failed to connect to GitHub while uploading file.".to_string())?;
 
-            if !res.status().is_success() {
-                return Err(format!("Failed to upload file to GitHub: {}", res.status()));
+    let tree_entries: Vec<serde_json::Value> = stream::iter(entries)
+        .map(|entry| {
+            let client = client.clone();
+            let blob_url = blob_url.clone();
+            let token = token.to_string();
+            let encoded = general_purpose::STANDARD.encode(&entry.content);
+            let repo_path = entry.repo_path.clone();
+            async move {
+                let res = client.post(&blob_url)
+                    .header("User-Agent", "SkillScout-App")
+                    .header("Authorization", format!("Bearer {}", token))
+                    .json(&serde_json::json!({ "content": encoded, "encoding": "base64" }))
+                    .send().await
+                    .map_err(|_| "Failed to connect to GitHub while uploading file.".to_string())?;
+
+                if !res.status().is_success() {
+                    return Err(format!("Failed to upload file to GitHub: {}", res.status()));
+                }
+                let info: serde_json::Value = res.json().await
+                    .map_err(|_| "Failed to parse blob response from GitHub.".to_string())?;
+                let sha = info["sha"].as_str().ok_or("Missing SHA in blob response.")?.to_string();
+                Ok(serde_json::json!({
+                    "path": repo_path,
+                    "mode": "100644",
+                    "type": "blob",
+                    "sha": sha
+                }))
             }
-            let info: serde_json::Value = res.json().await
-                .map_err(|_| "Failed to parse blob response from GitHub.".to_string())?;
-            let sha = info["sha"].as_str().ok_or("Missing SHA in blob response.")?.to_string();
-            Ok(serde_json::json!({
-                "path": repo_path,
-                "mode": "100644",
-                "type": "blob",
-                "sha": sha
-            }))
-        }));
-    }
+        })
+        .buffer_unordered(CONCURRENCY_LIMIT)
+        .collect::<Vec<Result<serde_json::Value, String>>>()
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()?;
 
-    let mut tree_entries = Vec::new();
-    for handle in handles {
-        tree_entries.push(handle.await.map_err(|_| "File upload task panicked.".to_string())??);
-    }
     Ok(tree_entries)
 }
 

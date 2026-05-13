@@ -202,8 +202,9 @@ async function applyToProjects() {
         isConfirmOpen.value = true
         return
       }
-    } catch {
-      // If check fails, proceed — apply will handle errors
+    } catch (err: any) {
+      error(typeof err === 'string' ? err : err.message ?? 'Failed to check existing files.')
+      return
     }
   }
 
