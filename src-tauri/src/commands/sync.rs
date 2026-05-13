@@ -227,8 +227,11 @@ pub async fn apply_skills(tasks: Vec<SyncTask>) -> Result<usize, String> {
 pub fn get_project_files(project_path: String, sub_folders: Vec<String>) -> Vec<String> {
     let mut files = Vec::new();
     let base_path = Path::new(&project_path);
-    
+
     for folder in sub_folders {
+        if !is_safe_filename(&folder) {
+            continue;
+        }
         let folder_path = base_path.join(&folder);
         if folder_path.exists() && folder_path.is_dir() {
             if let Ok(entries) = fs::read_dir(folder_path) {
@@ -243,8 +246,7 @@ pub fn get_project_files(project_path: String, sub_folders: Vec<String>) -> Vec<
             }
         }
     }
-    
-    // Sort and deduplicate
+
     files.sort();
     files.dedup();
     files

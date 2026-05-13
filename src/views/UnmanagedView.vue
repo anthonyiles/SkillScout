@@ -1,25 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useToast } from '../composables/useToast'
+import { useProjects } from '../composables/useProjects'
+import { useAgents } from '../composables/useAgents'
+import { syncRepo, promoteItem, checkPrStatus, getProjectFiles } from '../api'
+import type { Project } from '../types'
+import { getProjectName } from '../utils/formatters'
 import BaseButton from '../components/BaseButton.vue'
 import PageLayout from '../components/PageLayout.vue'
 import CardItem from '../components/CardItem.vue'
 import EmptyState from '../components/EmptyState.vue'
-
-interface Project {
-  id: number
-  path: string
-  agentIds: string[]
-}
-
-interface Agent {
-  id: string
-  name: string
-  skillsPath: string
-  rulesPath: string
-}
 
 interface UnmanagedItem {
   name: string
@@ -31,8 +22,11 @@ interface ProjectWithLocalItems extends Project {
   unmanaged: UnmanagedItem[]
 }
 
+const { projects: rawProjects, load: loadProjects } = useProjects()
+const { agents, load: loadAgents } = useAgents()
+const { success, error } = useToast()
+
 const projects = ref<ProjectWithLocalItems[]>([])
-const availableAgents = ref<Agent[]>([])
 const knownSkills = ref<Set<string>>(new Set())
 const knownRules = ref<Set<string>>(new Set())
 const scanning = ref(false)
@@ -41,122 +35,59 @@ const promotedItems = ref<Record<string, string>>({})
 const checkingPrs = ref<Set<string>>(new Set())
 const mergedPrs = ref<Set<string>>(new Set())
 
-const { success, error } = useToast()
-
-function getProjectName(path: string) {
-  if (!path) return 'New Project'
-  const parts = path.split(/[/\\]/).filter(Boolean)
-  return parts.length > 0 ? parts[parts.length - 1] : 'New Project'
-}
-
 async function scanLocal() {
   scanning.value = true
-
   try {
-    // Load agents
-    const savedAgents = localStorage.getItem('agents')
-    if (savedAgents) {
-      try {
-        availableAgents.value = JSON.parse(savedAgents)
-      } catch (e) {
-        console.error('Failed to parse agents from localStorage:', e)
-        availableAgents.value = []
-      }
-    }
-
-    // Load known items
     const savedSkills = localStorage.getItem('skills')
     if (savedSkills) {
-      try {
-        const parsed = JSON.parse(savedSkills)
-        knownSkills.value = new Set(parsed.map((s: any) => s.name))
-      } catch (e) {
-        console.error('Failed to parse skills from localStorage:', e)
-        knownSkills.value = new Set()
-      }
+      try { knownSkills.value = new Set(JSON.parse(savedSkills).map((s: any) => s.name)) }
+      catch { knownSkills.value = new Set() }
     }
-
     const savedRules = localStorage.getItem('rules')
     if (savedRules) {
-      try {
-        const parsed = JSON.parse(savedRules)
-        knownRules.value = new Set(parsed.map((r: any) => r.name))
-      } catch (e) {
-        console.error('Failed to parse rules from localStorage:', e)
-        knownRules.value = new Set()
-      }
+      try { knownRules.value = new Set(JSON.parse(savedRules).map((r: any) => r.name)) }
+      catch { knownRules.value = new Set() }
     }
 
-    // Load projects
-    const savedProjects = localStorage.getItem('projects')
-    if (savedProjects) {
-      try {
-        const rawProjects: Project[] = JSON.parse(savedProjects)
+    const enriched: ProjectWithLocalItems[] = []
+    for (const p of rawProjects.value) {
+      if (!p.path || !p.agentIds) { enriched.push({ ...p, unmanaged: [] }); continue }
 
-        const enriched: ProjectWithLocalItems[] = []
-
-        for (const p of rawProjects) {
-          if (!p.path || !p.agentIds) {
-            enriched.push({ ...p, unmanaged: [] })
-            continue
-          }
-
-          const skillPaths = new Set<string>();
-          const rulePaths = new Set<string>();
-
-          for (const agentId of p.agentIds) {
-            const agent = availableAgents.value.find(a => a.id === agentId);
-            if (agent) {
-              if (agent.skillsPath) skillPaths.add(agent.skillsPath);
-              if (agent.rulesPath) rulePaths.add(agent.rulesPath);
-            }
-          }
-
-          let unmanaged: UnmanagedItem[] = []
-
-          // Scan skills
-          if (skillPaths.size > 0) {
-            try {
-              const foundFiles: string[] = await invoke('get_project_files', {
-                projectPath: p.path,
-                subFolders: Array.from(skillPaths)
-              });
-
-              unmanaged.push(...foundFiles
-                .filter(f => !knownSkills.value.has(f))
-                .map(f => ({ name: f, path: p.path, type: 'skill' as const })))
-            } catch (e) {
-              console.error(`Failed to scan skills for project ${p.path}:`, e)
-              error(`Failed to scan skills in ${p.path}: ${e}`)
-            }
-          }
-
-          // Scan rules
-          if (rulePaths.size > 0) {
-            try {
-              const foundFiles: string[] = await invoke('get_project_files', {
-                projectPath: p.path,
-                subFolders: Array.from(rulePaths)
-              });
-
-              unmanaged.push(...foundFiles
-                .filter(f => !knownRules.value.has(f))
-                .map(f => ({ name: f, path: p.path, type: 'rule' as const })))
-            } catch (e) {
-              console.error(`Failed to scan rules for project ${p.path}:`, e)
-              error(`Failed to scan rules in ${p.path}: ${e}`)
-            }
-          }
-
-          enriched.push({ ...p, unmanaged })
+      const skillPaths = new Set<string>()
+      const rulePaths = new Set<string>()
+      for (const agentId of p.agentIds) {
+        const agent = agents.value.find(a => a.id === agentId)
+        if (agent) {
+          if (agent.skillsPath) skillPaths.add(agent.skillsPath)
+          if (agent.rulesPath) rulePaths.add(agent.rulesPath)
         }
-
-        projects.value = enriched
-      } catch (e) {
-        console.error('Failed to parse projects from localStorage:', e)
-        projects.value = []
       }
+
+      const unmanaged: UnmanagedItem[] = []
+
+      if (skillPaths.size > 0) {
+        try {
+          const found = await getProjectFiles(p.path, Array.from(skillPaths))
+          unmanaged.push(...found.filter(f => !knownSkills.value.has(f)).map(f => ({ name: f, path: p.path, type: 'skill' as const })))
+        } catch (e) {
+          console.error(`Failed to scan skills for ${p.path}:`, e)
+          error(`Failed to scan skills in ${p.path}: ${e}`)
+        }
+      }
+
+      if (rulePaths.size > 0) {
+        try {
+          const found = await getProjectFiles(p.path, Array.from(rulePaths))
+          unmanaged.push(...found.filter(f => !knownRules.value.has(f)).map(f => ({ name: f, path: p.path, type: 'rule' as const })))
+        } catch (e) {
+          console.error(`Failed to scan rules for ${p.path}:`, e)
+          error(`Failed to scan rules in ${p.path}: ${e}`)
+        }
+      }
+
+      enriched.push({ ...p, unmanaged })
     }
+    projects.value = enriched
   } finally {
     scanning.value = false
     loading.value = false
@@ -164,59 +95,49 @@ async function scanLocal() {
 }
 
 onMounted(async () => {
+  loadProjects()
+  loadAgents()
+
   const savedPromoted = localStorage.getItem('promotedItems')
   if (savedPromoted) {
-    try {
-      promotedItems.value = JSON.parse(savedPromoted)
-    } catch (e) {
-      console.error('Failed to parse promoted items:', e)
-    }
+    try { promotedItems.value = JSON.parse(savedPromoted) }
+    catch { console.error('Failed to parse promoted items') }
   }
-  
-  // Scan immediately so UI isn't blank
+
   await scanLocal()
-  
-  // Background check PRs
+
   const repoUrl = localStorage.getItem('repoUrl')
   let syncNeeded = false
   let changed = false
-  
+
   await Promise.all(Object.entries(promotedItems.value).map(async ([key, url]) => {
     checkingPrs.value.add(key)
     try {
-      const res = await invoke<any>('check_pr_status', { prUrl: url })
+      const res = await checkPrStatus(url)
       if (res.state !== 'open') {
         delete promotedItems.value[key]
         changed = true
-        if (res.merged) {
-          mergedPrs.value.add(key)
-          syncNeeded = true
-        }
+        if (res.merged) { mergedPrs.value.add(key); syncNeeded = true }
       }
-    } catch (e) {
-      // Keep on error
+    } catch {
+      // Keep entry on error — PR status unknown
     } finally {
       checkingPrs.value.delete(key)
     }
   }))
-  
-  if (changed) {
-    localStorage.setItem('promotedItems', JSON.stringify(promotedItems.value))
-  }
-  
+
+  if (changed) localStorage.setItem('promotedItems', JSON.stringify(promotedItems.value))
+
   if (syncNeeded && repoUrl) {
     try {
-      const fetchedSkills: any[] = await invoke('sync_repo', { repoUrl })
-      const filteredSkills = fetchedSkills.filter(s => s.folder === 'skills')
-      const filteredRules = fetchedSkills.filter(s => s.folder === 'rules')
-      
-      localStorage.setItem('all_repo_data', JSON.stringify(fetchedSkills))
+      const fetched = await syncRepo(repoUrl)
+      const filteredSkills = fetched.filter(s => s.folder === 'skills')
+      const filteredRules = fetched.filter(s => s.folder === 'rules')
+      localStorage.setItem('all_repo_data', JSON.stringify(fetched))
       localStorage.setItem('skills', JSON.stringify(filteredSkills))
       localStorage.setItem('rules', JSON.stringify(filteredRules))
-      
       knownSkills.value = new Set(filteredSkills.map(s => s.name))
       knownRules.value = new Set(filteredRules.map(s => s.name))
-      
       await scanLocal()
       success('Background sync complete. Managed items updated.')
     } catch (e) {
@@ -232,38 +153,28 @@ async function handleManualScan() {
 
 const promotingItem = ref<string | null>(null)
 
-async function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) {
+async function handlePromoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) {
   const repoUrl = localStorage.getItem('repoUrl')
-  if (!repoUrl) {
-    error('Please configure a repository URL in Settings first.')
-    return
-  }
-  
-  // Reconstruct subFolders from project
+  if (!repoUrl) { error('Please configure a repository URL in Settings first.'); return }
+
   const subFolders = new Set<string>()
   for (const agentId of project.agentIds) {
-    const agent = availableAgents.value.find(a => a.id === agentId)
+    const agent = agents.value.find(a => a.id === agentId)
     if (agent) {
       if (item.type === 'skill' && agent.skillsPath) subFolders.add(agent.skillsPath)
       if (item.type === 'rule' && agent.rulesPath) subFolders.add(agent.rulesPath)
     }
   }
 
-  promotingItem.value = `${project.id}-${item.name}`
+  const key = `${project.id}-${item.name}`
+  promotingItem.value = key
   try {
-    const prUrl = await invoke<string>('promote_item', {
-      repoUrl,
-      itemType: item.type,
-      itemName: item.name,
-      projectPath: project.path,
-      subFolders: Array.from(subFolders)
-    })
-    
-    success(`Successfully created PR!`)
-    promotedItems.value[`${project.id}-${item.name}`] = prUrl
+    const prUrl = await promoteItem(repoUrl, item.type, item.name, project.path, Array.from(subFolders))
+    success('Successfully created PR!')
+    promotedItems.value[key] = prUrl
     localStorage.setItem('promotedItems', JSON.stringify(promotedItems.value))
   } catch (e: any) {
-    error(typeof e === 'string' ? e : e.message || 'Failed to promote item')
+    error(typeof e === 'string' ? e : e.message ?? 'Failed to promote item')
     console.error(e)
   } finally {
     promotingItem.value = null
@@ -281,25 +192,20 @@ async function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) 
       </BaseButton>
     </template>
 
-    <EmptyState 
-      v-if="loading" 
-      message="Loading unmanaged items..." 
-    />
+    <EmptyState v-if="loading" message="Loading unmanaged items..." />
+
     <div v-else class="projects-list">
       <div v-for="project in projects" :key="project.id">
-        <CardItem 
-          v-if="project.unmanaged.length > 0" 
-          glass 
+        <CardItem
+          v-if="project.unmanaged.length > 0"
+          glass
           :title="getProjectName(project.path)"
           :subtitle="`${project.unmanaged.length} items to promote`"
         >
-          
           <div class="items-list">
             <div v-for="item in project.unmanaged" :key="`${item.type}-${item.name}`" class="item-row">
               <div class="item-info">
-                <div class="type-badge" :class="item.type">
-                  {{ item.type }}
-                </div>
+                <div class="type-badge" :class="item.type">{{ item.type }}</div>
                 <div class="name-container">
                   <svg v-if="item.type === 'skill'" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-secondary"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
                   <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-secondary"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
@@ -318,9 +224,9 @@ async function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) 
                 </BaseButton>
               </template>
               <template v-else-if="promotedItems[`${project.id}-${item.name}`]">
-                <BaseButton 
-                  variant="primary" 
-                  size="sm" 
+                <BaseButton
+                  variant="primary"
+                  size="sm"
                   @click="openUrl(promotedItems[`${project.id}-${item.name}`]).catch(() => error('Failed to open PR URL'))"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
@@ -328,11 +234,11 @@ async function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) 
                 </BaseButton>
               </template>
               <template v-else>
-                <BaseButton 
-                  variant="secondary" 
-                  size="sm" 
+                <BaseButton
+                  variant="secondary"
+                  size="sm"
                   :disabled="promotingItem === `${project.id}-${item.name}`"
-                  @click="promoteItem(item, project)"
+                  @click="handlePromoteItem(item, project)"
                 >
                   <span v-if="promotingItem === `${project.id}-${item.name}`" class="loader small-loader"></span>
                   <span v-else>Promote</span>
@@ -342,11 +248,11 @@ async function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) 
           </div>
         </CardItem>
       </div>
-      
-      <EmptyState 
-        v-if="projects.filter(p => p.unmanaged.length > 0).length === 0" 
+
+      <EmptyState
+        v-if="projects.filter(p => p.unmanaged.length > 0).length === 0"
         glass
-        message="No unmanaged items found. All your local files are synced with the central repository!" 
+        message="No unmanaged items found. All your local files are synced with the central repository!"
       />
     </div>
   </PageLayout>
@@ -414,9 +320,7 @@ async function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) 
   font-size: 0.9rem;
 }
 
-.text-secondary {
-  color: var(--text-secondary);
-}
+.text-secondary { color: var(--text-secondary); }
 
 .loader {
   border: 2px solid rgba(255, 255, 255, 0.3);
@@ -427,11 +331,7 @@ async function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) 
   animation: spin 1s linear infinite;
 }
 
-.small-loader {
-  width: 12px;
-  height: 12px;
-  border-width: 2px;
-}
+.small-loader { width: 12px; height: 12px; border-width: 2px; }
 
 @keyframes spin {
   0% { transform: rotate(0deg); }

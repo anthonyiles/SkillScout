@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Skill {
     pub id: String,
     pub name: String,
@@ -11,6 +12,7 @@ pub struct Skill {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
 pub struct DeviceAuthResponse {
     pub device_code: String,
     pub user_code: String,
@@ -22,6 +24,7 @@ pub struct DeviceAuthResponse {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
 pub struct TokenResponse {
     pub access_token: Option<String>,
     pub token_type: Option<String>,
@@ -30,7 +33,15 @@ pub struct TokenResponse {
     pub error_description: Option<String>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrStatus {
+    pub state: String,
+    pub merged: bool,
+}
+
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SyncTask {
     pub source_file: Option<String>,
     pub target_dir: String,

@@ -1,48 +1,36 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { useToast } from '../composables/useToast'
-
-interface Skill {
-  id: string
-  name: string
-  folder: string
-  description: string
-  file_path: string
-  content: string
-}
-
-interface Project {
-  id: number
-  path: string
-  agentIds: string[]
-}
-
-interface Agent {
-  id: string
-  name: string
-  skillsPath: string
-  rulesPath: string
-}
-
-const rules = ref<Skill[]>([])
-const projects = ref<Project[]>([])
-const availableAgents = ref<Agent[]>([])
-const loading = ref(false)
-
-const { error, success } = useToast()
-
+import { useProjects } from '../composables/useProjects'
+import { useAgents } from '../composables/useAgents'
+import { syncRepo, checkExisting, applySkills, getProjectFiles } from '../api'
+import type { SyncTask } from '../api'
+import type { Skill } from '../types'
+import { getProjectName } from '../utils/formatters'
 import ContentModal from '../components/ContentModal.vue'
 import TickBox from '../components/TickBox.vue'
 import BaseButton from '../components/BaseButton.vue'
 import PageLayout from '../components/PageLayout.vue'
 import EmptyState from '../components/EmptyState.vue'
+import ConfirmModal from '../components/ConfirmModal.vue'
+
+const { projects, load: loadProjects } = useProjects()
+const { agents, load: loadAgents } = useAgents()
+const { error, success } = useToast()
+
+const rules = ref<Skill[]>([])
+const loading = ref(false)
+const scanning = ref(false)
+const applying = ref(false)
 
 // Matrix: rule.id -> Set of project.id
-const selectionMatrix = ref<Record<string, Set<number>>>({})
+const selectionMatrix = ref<Record<string, Set<string>>>({})
 
 const activeRule = ref<Skill | null>(null)
 const isModalOpen = ref(false)
+const isConfirmOpen = ref(false)
+const conflictingFiles = ref<string[]>([])
+let pendingTasks: SyncTask[] = []
 
 function openPreview(rule: Skill) {
   activeRule.value = rule
@@ -56,48 +44,28 @@ function truncate(str: string, length: number) {
 }
 
 onMounted(() => {
-  // Load projects from local storage
-  const savedProjects = localStorage.getItem('projects')
-  if (savedProjects) {
-    try {
-      projects.value = JSON.parse(savedProjects)
-    } catch (e) {
-      console.error('Failed to parse projects from localStorage:', e)
-      projects.value = []
-    }
-  }
+  loadProjects()
+  loadAgents()
 
-  const savedAgents = localStorage.getItem('agents')
-  if (savedAgents) {
-    try {
-      availableAgents.value = JSON.parse(savedAgents)
-    } catch (e) {
-      console.error('Failed to parse agents from localStorage:', e)
-      availableAgents.value = []
-    }
-  }
-
-  // Load cached rules from local storage
   const savedRules = localStorage.getItem('rules')
   if (savedRules) {
     try {
       rules.value = JSON.parse(savedRules)
       initializeMatrix()
-    } catch (e) {
-      console.error('Failed to parse rules from localStorage:', e)
+      scanLocal(true)
+    } catch {
       rules.value = []
     }
   } else {
-    // Check if we already synced via Skills page
     const allData = localStorage.getItem('all_repo_data')
     if (allData) {
       try {
-        const parsedData: Skill[] = JSON.parse(allData)
-        rules.value = parsedData.filter(s => s.folder === 'rules')
+        const parsed: Skill[] = JSON.parse(allData)
+        rules.value = parsed.filter(s => s.folder === 'rules')
         localStorage.setItem('rules', JSON.stringify(rules.value))
         initializeMatrix()
-      } catch (e) {
-        console.error('Failed to parse all_repo_data from localStorage:', e)
+        scanLocal(true)
+      } catch {
         rules.value = []
       }
     }
@@ -105,194 +73,210 @@ onMounted(() => {
 })
 
 function initializeMatrix() {
-  rules.value.forEach(rule => {
-    if (!selectionMatrix.value[rule.id]) {
-      selectionMatrix.value[rule.id] = new Set()
-    }
-  })
-  
+  // Build fresh — prevents stale entries when rules are removed between syncs
+  const fresh: Record<string, Set<string>> = {}
+  rules.value.forEach(rule => { fresh[rule.id] = new Set() })
+
   const savedSelection = localStorage.getItem('rulesSelection')
   if (savedSelection) {
     try {
       const parsed = JSON.parse(savedSelection)
       for (const [key, arr] of Object.entries(parsed)) {
-        selectionMatrix.value[key] = new Set(arr as number[])
+        if (fresh[key]) fresh[key] = new Set(arr as string[])
       }
-    } catch(e) {
-      console.error('Failed to parse rulesSelection from localStorage:', e, savedSelection)
-      selectionMatrix.value = {}
+    } catch {
+      // leave fresh empty on parse failure
     }
   }
+
+  selectionMatrix.value = fresh
 }
 
-async function syncRepo() {
+async function doSync() {
   loading.value = true
-  
   const repoUrl = localStorage.getItem('repoUrl')
   if (!repoUrl) {
     error('Please configure a repository URL in Settings first.')
     loading.value = false
     return
   }
-
   try {
-    const fetchedData: Skill[] = await invoke('sync_repo', { repoUrl })
-    const filteredRules = fetchedData.filter(s => s.folder === 'rules')
-    
+    const fetched = await syncRepo(repoUrl)
+    const filteredRules = fetched.filter(s => s.folder === 'rules')
     if (filteredRules.length === 0) {
       error('Repository synced, but no rules were found in the /rules folder.')
     } else {
       success(`Successfully synced ${filteredRules.length} rules!`)
     }
     rules.value = filteredRules
-    
-    // Also store all fetched data globally
-    localStorage.setItem('all_repo_data', JSON.stringify(fetchedData))
+    localStorage.setItem('all_repo_data', JSON.stringify(fetched))
     localStorage.setItem('rules', JSON.stringify(filteredRules))
-    
-    // Also update skills cache for the other tab
-    localStorage.setItem('skills', JSON.stringify(fetchedData.filter(s => s.folder === 'skills')))
-    
+    localStorage.setItem('skills', JSON.stringify(fetched.filter(s => s.folder === 'skills')))
     initializeMatrix()
   } catch (err: any) {
-    error(typeof err === 'string' ? err : err.message || JSON.stringify(err))
+    error(typeof err === 'string' ? err : err.message ?? JSON.stringify(err))
   } finally {
     loading.value = false
   }
 }
 
-function toggleSelection(ruleId: string, projectId: number) {
+function toggleSelection(ruleId: string, projectId: string) {
   if (!selectionMatrix.value[ruleId]) {
     selectionMatrix.value[ruleId] = new Set()
   }
-  
   if (selectionMatrix.value[ruleId].has(projectId)) {
     selectionMatrix.value[ruleId].delete(projectId)
   } else {
     selectionMatrix.value[ruleId].add(projectId)
   }
-  
   saveSelection()
 }
 
 function saveSelection() {
-  const serialized: Record<string, number[]> = {}
+  const serialized: Record<string, string[]> = {}
   for (const [key, set] of Object.entries(selectionMatrix.value)) {
     serialized[key] = Array.from(set)
   }
   localStorage.setItem('rulesSelection', JSON.stringify(serialized))
 }
 
-function isSelected(ruleId: string, projectId: number) {
-  return selectionMatrix.value[ruleId]?.has(projectId) || false
+async function scanLocal(silent = false) {
+  scanning.value = true
+  let updated = false
+  for (const project of projects.value) {
+    if (!project.path || !project.agentIds) continue
+    const rulePaths = new Set<string>()
+    for (const agentId of project.agentIds) {
+      const agent = agents.value.find(a => a.id === agentId)
+      if (agent?.rulesPath) rulePaths.add(agent.rulesPath)
+    }
+    if (rulePaths.size === 0) continue
+    try {
+      const foundFiles = await getProjectFiles(project.path, Array.from(rulePaths))
+      for (const rule of rules.value) {
+        if (!selectionMatrix.value[rule.id]) selectionMatrix.value[rule.id] = new Set()
+        const wasSelected = selectionMatrix.value[rule.id].has(project.id)
+        const isNowSelected = foundFiles.includes(rule.name)
+        if (isNowSelected && !wasSelected) { selectionMatrix.value[rule.id].add(project.id); updated = true }
+        else if (!isNowSelected && wasSelected) { selectionMatrix.value[rule.id].delete(project.id); updated = true }
+      }
+    } catch (e: any) {
+      console.error(`Failed to scan ${project.path}`, e)
+    }
+  }
+  if (updated) saveSelection()
+  if (!silent) success(updated ? 'Matched tickboxes with local files!' : 'Tickboxes are already up to date.')
+  scanning.value = false
 }
 
-function getProjectName(path: string) {
-  if (!path) return 'New Project'
-  const parts = path.split(/[/\\]/).filter(Boolean)
-  return parts.length > 0 ? parts[parts.length - 1] : 'New Project'
+function isSelected(ruleId: string, projectId: string) {
+  return selectionMatrix.value[ruleId]?.has(projectId) ?? false
 }
 
-const applying = ref(false)
+function buildTasks(): { tasks: SyncTask[]; error: string } {
+  const tasks: SyncTask[] = []
+  for (const rule of rules.value) {
+    const selectedIds = selectionMatrix.value[rule.id] ?? new Set()
+    for (const project of projects.value) {
+      if (!project.path) continue
+      const selected = selectedIds.has(project.id)
+      if (selected && (!project.agentIds || project.agentIds.length === 0)) {
+        return { tasks: [], error: `Project "${getProjectName(project.path)}" has no agents enabled in Settings.` }
+      }
+      for (const agentId of project.agentIds ?? []) {
+        const agent = agents.value.find(a => a.id === agentId)
+        if (selected && !agent) {
+          return { tasks: [], error: `Agent "${agentId}" not found for project "${getProjectName(project.path)}".` }
+        }
+        if (selected && agent && !agent.rulesPath) {
+          return { tasks: [], error: `Rules target path not configured for agent "${agent.name}" in project "${getProjectName(project.path)}".` }
+        }
+        if (agent?.rulesPath) {
+          tasks.push({
+            sourceFile: selected ? rule.filePath : null,
+            targetDir: `${project.path}/${agent.rulesPath}`,
+            fileName: rule.name,
+            remove: !selected,
+          })
+        }
+      }
+    }
+  }
+  return { tasks, error: '' }
+}
 
 async function applyToProjects() {
-  const tasks: any[] = []
-  let missingConfigError = ''
-  
-  // Build tasks from matrix
-  for (const rule of rules.value) {
-    const selectedProjectIds = selectionMatrix.value[rule.id] || new Set()
-    
-    for (const project of projects.value) {
-      if (!project.path) continue // Skip unconfigured
-      
-      const isSelected = selectedProjectIds.has(project.id)
+  const { tasks, error: buildError } = buildTasks()
+  if (buildError) { error(buildError); return }
+  if (tasks.length === 0) { error('No projects to apply rules to.'); return }
 
-      if (isSelected && (!project.agentIds || project.agentIds.length === 0)) {
-        missingConfigError = `Project "${getProjectName(project.path)}" has no agents enabled in Settings.`
-        break
+  const addTasks = tasks.filter(t => !t.remove)
+  if (addTasks.length > 0) {
+    try {
+      const conflicts = await checkExisting(addTasks)
+      if (conflicts.length > 0) {
+        conflictingFiles.value = conflicts
+        pendingTasks = tasks
+        isConfirmOpen.value = true
+        return
       }
-
-      if (!project.agentIds) continue
-
-      for (const agentId of project.agentIds) {
-        const agent = availableAgents.value.find(a => a.id === agentId)
-        
-        if (isSelected) {
-          if (!agent) {
-            missingConfigError = `Agent "${agentId}" not found for project "${getProjectName(project.path)}".`
-            break
-          }
-          if (!agent.rulesPath) {
-            missingConfigError = `Rules target path not configured for agent "${agent.name}" in project "${getProjectName(project.path)}".`
-            break
-          }
-        }
-
-        if (agent && agent.rulesPath) {
-          if (isSelected) {
-            tasks.push({
-              source_file: rule.file_path,
-              target_dir: `${project.path}/${agent.rulesPath}`,
-              file_name: rule.name,
-              remove: false
-            })
-          } else {
-            tasks.push({
-              source_file: null,
-              target_dir: `${project.path}/${agent.rulesPath}`,
-              file_name: rule.name,
-              remove: true
-            })
-          }
-        }
-      }
-      if (missingConfigError) break
+    } catch {
+      // If check fails, proceed
     }
-    if (missingConfigError) break
   }
 
-  if (missingConfigError) {
-    error(missingConfigError)
-    return
-  }
+  await runApply(tasks)
+}
 
-  if (tasks.length === 0) {
-    error('No projects to apply rules to.')
-    return
-  }
-
+async function runApply(tasks: SyncTask[]) {
   applying.value = true
   try {
-    await invoke('apply_skills', { tasks })
-    success(`Successfully updated rules across your projects!`)
+    const count = await applySkills(tasks)
+    success(`Successfully updated ${count} file(s) across your projects!`)
   } catch (err: any) {
-    error(typeof err === 'string' ? err : err.message || JSON.stringify(err))
+    error(typeof err === 'string' ? err : err.message ?? JSON.stringify(err))
   } finally {
     applying.value = false
   }
+}
+
+async function confirmOverwrite() {
+  isConfirmOpen.value = false
+  await runApply(pendingTasks)
+  pendingTasks = []
+}
+
+function cancelOverwrite() {
+  isConfirmOpen.value = false
+  pendingTasks = []
+  conflictingFiles.value = []
 }
 </script>
 
 <template>
   <PageLayout title="Rules">
     <template #actions>
-      <BaseButton variant="secondary" @click="applyToProjects" :disabled="applying || loading">
+      <BaseButton variant="secondary" @click="applyToProjects" :disabled="applying || loading || scanning">
         <svg v-if="!applying" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
         <span v-else class="loader"></span>
         {{ applying ? 'Applying...' : 'Apply' }}
       </BaseButton>
-      <BaseButton variant="primary" @click="syncRepo" :disabled="loading || applying">
+      <BaseButton variant="secondary" @click="scanLocal(false)" :disabled="loading || applying || scanning">
+        <svg v-if="!scanning" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h3"/><path d="M19 12h3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="m4.93 4.93 2.12 2.12"/><path d="m16.95 16.95 2.12 2.12"/><path d="m4.93 19.07 2.12-2.12"/><path d="m16.95 7.05 2.12-2.12"/></svg>
+        <span v-else class="loader"></span>
+        {{ scanning ? 'Scanning...' : 'Scan files' }}
+      </BaseButton>
+      <BaseButton variant="primary" @click="doSync" :disabled="loading || applying || scanning">
         <svg v-if="!loading" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
         <span v-else class="loader"></span>
         {{ loading ? 'Syncing...' : 'Sync' }}
       </BaseButton>
     </template>
 
-    <EmptyState 
-      v-if="rules.length === 0 && !loading" 
+    <EmptyState
+      v-if="rules.length === 0 && !loading"
       glass
-      message="No rules loaded. Click 'Sync' to fetch rules from GitHub." 
+      message="No rules loaded. Click 'Sync' to fetch rules from GitHub."
     />
 
     <div v-else-if="rules.length > 0" class="matrix-container glass">
@@ -303,9 +287,7 @@ async function applyToProjects() {
             <th v-for="project in projects" :key="project.id" class="project-col">
               {{ getProjectName(project.path) }}
             </th>
-            <th v-if="projects.length === 0" class="project-col text-secondary">
-              No projects configured
-            </th>
+            <th v-if="projects.length === 0" class="project-col text-secondary">No projects configured</th>
           </tr>
         </thead>
         <tbody>
@@ -324,33 +306,37 @@ async function applyToProjects() {
               </button>
             </td>
             <td v-for="project in projects" :key="project.id" class="checkbox-cell">
-              <TickBox 
+              <TickBox
                 :checked="isSelected(rule.id, project.id)"
                 @change="toggleSelection(rule.id, project.id)"
               />
             </td>
-            <td v-if="projects.length === 0" class="checkbox-cell text-secondary text-sm">
-              -
-            </td>
+            <td v-if="projects.length === 0" class="checkbox-cell text-secondary text-sm">-</td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <ContentModal 
-      :isOpen="isModalOpen" 
-      :title="activeRule?.name || ''" 
-      :content="activeRule?.content || ''" 
-      @close="isModalOpen = false" 
+    <ContentModal
+      :isOpen="isModalOpen"
+      :title="activeRule?.name ?? ''"
+      :content="activeRule?.content ?? ''"
+      @close="isModalOpen = false"
+    />
+
+    <ConfirmModal
+      :isOpen="isConfirmOpen"
+      title="Overwrite existing files?"
+      :message="`The following files already exist and will be overwritten:\n\n${conflictingFiles.join('\n')}`"
+      confirmText="Overwrite"
+      :danger="true"
+      @confirm="confirmOverwrite"
+      @cancel="cancelOverwrite"
     />
   </PageLayout>
 </template>
 
 <style scoped>
-
-
-
-
 .loader {
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-top: 2px solid white;
@@ -364,8 +350,6 @@ async function applyToProjects() {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
-
-
 
 .matrix-container {
   border-radius: var(--radius-md);
@@ -390,26 +374,12 @@ async function applyToProjects() {
   white-space: nowrap;
 }
 
-.matrix-table tr:last-child td {
-  border-bottom: none;
-}
+.matrix-table tr:last-child td { border-bottom: none; }
+.matrix-table tbody tr:hover { background: var(--bg-surface-hover); }
 
-.matrix-table tbody tr:hover {
-  background: var(--bg-surface-hover);
-}
-
-.skill-col {
-  width: 40%;
-}
-
-.project-col {
-  text-align: center;
-  width: 150px;
-}
-
-.checkbox-cell {
-  text-align: center;
-}
+.skill-col { width: 40%; }
+.project-col { text-align: center; width: 150px; }
+.checkbox-cell { text-align: center; }
 
 .skill-info {
   display: flex;
@@ -432,9 +402,7 @@ async function applyToProjects() {
   transition: color var(--transition-fast);
 }
 
-.skill-preview-line:hover {
-  color: var(--accent-primary);
-}
+.skill-preview-line:hover { color: var(--accent-primary); }
 
 .preview-button {
   width: 100%;
@@ -445,10 +413,6 @@ async function applyToProjects() {
   font-family: inherit;
 }
 
-.text-secondary {
-  color: var(--text-secondary);
-}
-.text-sm {
-  font-size: 0.875rem;
-}
+.text-secondary { color: var(--text-secondary); }
+.text-sm { font-size: 0.875rem; }
 </style>

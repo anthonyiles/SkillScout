@@ -1,49 +1,36 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { useToast } from '../composables/useToast'
-
-interface Skill {
-  id: string
-  name: string
-  folder: string
-  description: string
-  file_path: string
-  content: string
-}
-
-interface Project {
-  id: number
-  path: string
-  agentIds: string[]
-}
-
-interface Agent {
-  id: string
-  name: string
-  skillsPath: string
-  rulesPath: string
-}
-
-const skills = ref<Skill[]>([])
-const projects = ref<Project[]>([])
-const availableAgents = ref<Agent[]>([])
-const loading = ref(false)
-const scanning = ref(false)
-
-const { error, success } = useToast()
-
+import { useProjects } from '../composables/useProjects'
+import { useAgents } from '../composables/useAgents'
+import { syncRepo, checkExisting, applySkills, getProjectFiles } from '../api'
+import type { SyncTask } from '../api'
+import type { Skill } from '../types'
+import { getProjectName } from '../utils/formatters'
 import ContentModal from '../components/ContentModal.vue'
 import TickBox from '../components/TickBox.vue'
 import BaseButton from '../components/BaseButton.vue'
 import PageLayout from '../components/PageLayout.vue'
 import EmptyState from '../components/EmptyState.vue'
+import ConfirmModal from '../components/ConfirmModal.vue'
+
+const { projects, load: loadProjects } = useProjects()
+const { agents, load: loadAgents } = useAgents()
+const { error, success } = useToast()
+
+const skills = ref<Skill[]>([])
+const loading = ref(false)
+const scanning = ref(false)
+const applying = ref(false)
 
 // Matrix: skill.id -> Set of project.id
-const selectionMatrix = ref<Record<string, Set<number>>>({})
+const selectionMatrix = ref<Record<string, Set<string>>>({})
 
 const activeSkill = ref<Skill | null>(null)
 const isModalOpen = ref(false)
+const isConfirmOpen = ref(false)
+const conflictingFiles = ref<string[]>([])
+let pendingTasks: SyncTask[] = []
 
 function openPreview(skill: Skill) {
   activeSkill.value = skill
@@ -57,111 +44,83 @@ function truncate(str: string, length: number) {
 }
 
 onMounted(() => {
-  // Load projects from local storage
-  const savedProjects = localStorage.getItem('projects')
-  if (savedProjects) {
-    try {
-      projects.value = JSON.parse(savedProjects)
-    } catch (e) {
-      console.error('Failed to parse projects from localStorage:', e)
-      projects.value = []
-    }
-  }
+  loadProjects()
+  loadAgents()
 
-  const savedAgents = localStorage.getItem('agents')
-  if (savedAgents) {
-    try {
-      availableAgents.value = JSON.parse(savedAgents)
-    } catch (e) {
-      console.error('Failed to parse agents from localStorage:', e)
-      availableAgents.value = []
-    }
-  }
-
-  // Load cached skills from local storage
   const savedSkills = localStorage.getItem('skills')
   if (savedSkills) {
     try {
       skills.value = JSON.parse(savedSkills)
       initializeMatrix()
       scanLocal(true)
-    } catch (e) {
-      console.error('Failed to parse skills from localStorage:', e)
+    } catch {
       skills.value = []
     }
   }
 })
 
 function initializeMatrix() {
-  skills.value.forEach(skill => {
-    if (!selectionMatrix.value[skill.id]) {
-      selectionMatrix.value[skill.id] = new Set()
-    }
-  })
-  
+  // Build fresh — prevents stale entries when skills are removed between syncs
+  const fresh: Record<string, Set<string>> = {}
+  skills.value.forEach(skill => { fresh[skill.id] = new Set() })
+
   const savedSelection = localStorage.getItem('skillsSelection')
   if (savedSelection) {
     try {
       const parsed = JSON.parse(savedSelection)
       for (const [key, arr] of Object.entries(parsed)) {
-        selectionMatrix.value[key] = new Set(arr as number[])
+        if (fresh[key]) fresh[key] = new Set(arr as string[])
       }
-    } catch(e) {
-      console.error('Failed to parse skillsSelection from localStorage:', e, savedSelection)
-      selectionMatrix.value = {}
+    } catch {
+      // leave fresh empty on parse failure
     }
   }
+
+  selectionMatrix.value = fresh
 }
 
-async function syncRepo() {
+async function doSync() {
   loading.value = true
-  
   const repoUrl = localStorage.getItem('repoUrl')
   if (!repoUrl) {
     error('Please configure a repository URL in Settings first.')
     loading.value = false
     return
   }
-
   try {
-    const fetchedSkills: Skill[] = await invoke('sync_repo', { repoUrl })
-    const filteredSkills = fetchedSkills.filter(s => s.folder === 'skills')
-    
+    const fetched = await syncRepo(repoUrl)
+    const filteredSkills = fetched.filter(s => s.folder === 'skills')
     if (filteredSkills.length === 0) {
       error('Repository synced, but no skills were found in the /skills folder.')
     } else {
       success(`Successfully synced ${filteredSkills.length} skills!`)
     }
     skills.value = filteredSkills
-    
-    // We can store all fetched to let RulesView access them without re-syncing
-    localStorage.setItem('all_repo_data', JSON.stringify(fetchedSkills))
+    localStorage.setItem('all_repo_data', JSON.stringify(fetched))
     localStorage.setItem('skills', JSON.stringify(filteredSkills))
-    localStorage.setItem('rules', JSON.stringify(fetchedSkills.filter(s => s.folder === 'rules')))
+    localStorage.setItem('rules', JSON.stringify(fetched.filter(s => s.folder === 'rules')))
     initializeMatrix()
   } catch (err: any) {
-    error(typeof err === 'string' ? err : err.message || JSON.stringify(err))
+    error(typeof err === 'string' ? err : err.message ?? JSON.stringify(err))
   } finally {
     loading.value = false
   }
 }
 
-function toggleSelection(skillId: string, projectId: number) {
+function toggleSelection(skillId: string, projectId: string) {
   if (!selectionMatrix.value[skillId]) {
     selectionMatrix.value[skillId] = new Set()
   }
-  
   if (selectionMatrix.value[skillId].has(projectId)) {
     selectionMatrix.value[skillId].delete(projectId)
   } else {
     selectionMatrix.value[skillId].add(projectId)
   }
-  
   saveSelection()
 }
 
 function saveSelection() {
-  const serialized: Record<string, number[]> = {}
+  const serialized: Record<string, string[]> = {}
   for (const [key, set] of Object.entries(selectionMatrix.value)) {
     serialized[key] = Array.from(set)
   }
@@ -172,130 +131,107 @@ async function scanLocal(silent = false) {
   scanning.value = true
   let updated = false
   for (const project of projects.value) {
-    if (!project.path || !project.agentIds) continue;
-    
-    const skillPathsToScan = new Set<string>();
+    if (!project.path || !project.agentIds) continue
+    const skillPaths = new Set<string>()
     for (const agentId of project.agentIds) {
-      const agent = availableAgents.value.find(a => a.id === agentId);
-      if (agent && agent.skillsPath) {
-        skillPathsToScan.add(agent.skillsPath);
-      }
+      const agent = agents.value.find(a => a.id === agentId)
+      if (agent?.skillsPath) skillPaths.add(agent.skillsPath)
     }
-    
-    if (skillPathsToScan.size === 0) continue;
-    
+    if (skillPaths.size === 0) continue
     try {
-      const foundFiles: string[] = await invoke('get_project_files', { 
-        projectPath: project.path, 
-        subFolders: Array.from(skillPathsToScan) 
-      });
-      
+      const foundFiles = await getProjectFiles(project.path, Array.from(skillPaths))
       for (const skill of skills.value) {
-        if (!selectionMatrix.value[skill.id]) {
-          selectionMatrix.value[skill.id] = new Set();
-        }
-        
-        const wasSelected = selectionMatrix.value[skill.id].has(project.id);
-        const isNowSelected = foundFiles.includes(skill.name);
-        
-        if (isNowSelected && !wasSelected) {
-          selectionMatrix.value[skill.id].add(project.id);
-          updated = true;
-        } else if (!isNowSelected && wasSelected) {
-          selectionMatrix.value[skill.id].delete(project.id);
-          updated = true;
-        }
+        if (!selectionMatrix.value[skill.id]) selectionMatrix.value[skill.id] = new Set()
+        const wasSelected = selectionMatrix.value[skill.id].has(project.id)
+        const isNowSelected = foundFiles.includes(skill.name)
+        if (isNowSelected && !wasSelected) { selectionMatrix.value[skill.id].add(project.id); updated = true }
+        else if (!isNowSelected && wasSelected) { selectionMatrix.value[skill.id].delete(project.id); updated = true }
       }
     } catch (e: any) {
-      console.error(`Failed to scan ${project.path}`, e);
+      console.error(`Failed to scan ${project.path}`, e)
     }
   }
-  
-  if (updated) {
-    saveSelection();
-  }
-  if (!silent) {
-    if (updated) success('Matched tickboxes with local files!')
-    else success('Tickboxes are already up to date.')
-  }
+  if (updated) saveSelection()
+  if (!silent) success(updated ? 'Matched tickboxes with local files!' : 'Tickboxes are already up to date.')
   scanning.value = false
 }
 
-function isSelected(skillId: string, projectId: number) {
-  return selectionMatrix.value[skillId]?.has(projectId) || false
+function isSelected(skillId: string, projectId: string) {
+  return selectionMatrix.value[skillId]?.has(projectId) ?? false
 }
 
-function getProjectName(path: string) {
-  if (!path) return 'New Project'
-  const parts = path.split(/[/\\]/).filter(Boolean)
-  return parts.length > 0 ? parts[parts.length - 1] : 'New Project'
-}
-
-const applying = ref(false)
-
-async function applyToProjects() {
-  const tasks: any[] = []
-  let missingConfigError = ''
-  
-  // Build tasks from matrix
+function buildTasks(): { tasks: SyncTask[]; error: string } {
+  const tasks: SyncTask[] = []
   for (const skill of skills.value) {
-    const selectedProjectIds = selectionMatrix.value[skill.id] || new Set()
-    
+    const selectedIds = selectionMatrix.value[skill.id] ?? new Set()
     for (const project of projects.value) {
-      if (!project.path) continue // Skip unconfigured
-      
-      const isSelected = selectedProjectIds.has(project.id)
-
-      if (isSelected && (!project.agentIds || project.agentIds.length === 0)) {
-        missingConfigError = `Project "${getProjectName(project.path)}" has no agents enabled in Settings.`
-        break
+      if (!project.path) continue
+      const selected = selectedIds.has(project.id)
+      if (selected && (!project.agentIds || project.agentIds.length === 0)) {
+        return { tasks: [], error: `Project "${getProjectName(project.path)}" has no agents enabled in Settings.` }
       }
-
-      if (!project.agentIds) continue
-
-      for (const agentId of project.agentIds) {
-        const agent = availableAgents.value.find(a => a.id === agentId)
-        if (agent && agent.skillsPath) {
-          if (isSelected) {
-            tasks.push({
-              source_file: skill.file_path,
-              target_dir: `${project.path}/${agent.skillsPath}`,
-              file_name: skill.name,
-              remove: false
-            })
-          } else {
-            tasks.push({
-              source_file: null,
-              target_dir: `${project.path}/${agent.skillsPath}`,
-              file_name: skill.name,
-              remove: true
-            })
-          }
+      for (const agentId of project.agentIds ?? []) {
+        const agent = agents.value.find(a => a.id === agentId)
+        if (agent?.skillsPath) {
+          tasks.push({
+            sourceFile: selected ? skill.filePath : null,
+            targetDir: `${project.path}/${agent.skillsPath}`,
+            fileName: skill.name,
+            remove: !selected,
+          })
         }
       }
     }
-    if (missingConfigError) break
+  }
+  return { tasks, error: '' }
+}
+
+async function applyToProjects() {
+  const { tasks, error: buildError } = buildTasks()
+  if (buildError) { error(buildError); return }
+  if (tasks.length === 0) { error('No projects to apply skills to.'); return }
+
+  // Check for conflicts before applying
+  const addTasks = tasks.filter(t => !t.remove)
+  if (addTasks.length > 0) {
+    try {
+      const conflicts = await checkExisting(addTasks)
+      if (conflicts.length > 0) {
+        conflictingFiles.value = conflicts
+        pendingTasks = tasks
+        isConfirmOpen.value = true
+        return
+      }
+    } catch {
+      // If check fails, proceed — apply will handle errors
+    }
   }
 
-  if (missingConfigError) {
-    error(missingConfigError)
-    return
-  }
+  await runApply(tasks)
+}
 
-  if (tasks.length === 0) {
-    error('No projects to apply skills to.')
-    return
-  }
-
+async function runApply(tasks: SyncTask[]) {
   applying.value = true
   try {
-    await invoke('apply_skills', { tasks })
-    success(`Successfully updated skills across your projects!`)
+    const count = await applySkills(tasks)
+    success(`Successfully updated ${count} file(s) across your projects!`)
   } catch (err: any) {
-    error(typeof err === 'string' ? err : err.message || JSON.stringify(err))
+    error(typeof err === 'string' ? err : err.message ?? JSON.stringify(err))
   } finally {
     applying.value = false
   }
+}
+
+async function confirmOverwrite() {
+  isConfirmOpen.value = false
+  await runApply(pendingTasks)
+  pendingTasks = []
+}
+
+function cancelOverwrite() {
+  isConfirmOpen.value = false
+  pendingTasks = []
+  conflictingFiles.value = []
 }
 </script>
 
@@ -312,17 +248,17 @@ async function applyToProjects() {
         <span v-else class="loader"></span>
         {{ scanning ? 'Scanning...' : 'Scan files' }}
       </BaseButton>
-      <BaseButton variant="primary" @click="syncRepo" :disabled="loading || applying || scanning">
+      <BaseButton variant="primary" @click="doSync" :disabled="loading || applying || scanning">
         <svg v-if="!loading" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
         <span v-else class="loader"></span>
         {{ loading ? 'Syncing...' : 'Sync' }}
       </BaseButton>
     </template>
 
-    <EmptyState 
-      v-if="skills.length === 0 && !loading" 
+    <EmptyState
+      v-if="skills.length === 0 && !loading"
       glass
-      message="No skills loaded. Click 'Sync' to fetch skills from GitHub." 
+      message="No skills loaded. Click 'Sync' to fetch skills from GitHub."
     />
 
     <div v-else-if="skills.length > 0" class="matrix-container glass">
@@ -333,9 +269,7 @@ async function applyToProjects() {
             <th v-for="project in projects" :key="project.id" class="project-col">
               {{ getProjectName(project.path) }}
             </th>
-            <th v-if="projects.length === 0" class="project-col text-secondary">
-              No projects configured
-            </th>
+            <th v-if="projects.length === 0" class="project-col text-secondary">No projects configured</th>
           </tr>
         </thead>
         <tbody>
@@ -348,33 +282,37 @@ async function applyToProjects() {
               </div>
             </td>
             <td v-for="project in projects" :key="project.id" class="checkbox-cell">
-              <TickBox 
+              <TickBox
                 :checked="isSelected(skill.id, project.id)"
                 @change="toggleSelection(skill.id, project.id)"
               />
             </td>
-            <td v-if="projects.length === 0" class="checkbox-cell text-secondary text-sm">
-              -
-            </td>
+            <td v-if="projects.length === 0" class="checkbox-cell text-secondary text-sm">-</td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <ContentModal 
-      :isOpen="isModalOpen" 
-      :title="activeSkill?.name || ''" 
-      :content="activeSkill?.content || ''" 
-      @close="isModalOpen = false" 
+    <ContentModal
+      :isOpen="isModalOpen"
+      :title="activeSkill?.name ?? ''"
+      :content="activeSkill?.content ?? ''"
+      @close="isModalOpen = false"
+    />
+
+    <ConfirmModal
+      :isOpen="isConfirmOpen"
+      title="Overwrite existing files?"
+      :message="`The following files already exist and will be overwritten:\n\n${conflictingFiles.join('\n')}`"
+      confirmText="Overwrite"
+      :danger="true"
+      @confirm="confirmOverwrite"
+      @cancel="cancelOverwrite"
     />
   </PageLayout>
 </template>
 
 <style scoped>
-
-
-
-
 .loader {
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-top: 2px solid white;
@@ -388,8 +326,6 @@ async function applyToProjects() {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
-
-
 
 .matrix-container {
   border-radius: var(--radius-md);
@@ -422,18 +358,9 @@ async function applyToProjects() {
   background: var(--bg-surface-hover);
 }
 
-.skill-col {
-  width: 40%;
-}
-
-.project-col {
-  text-align: center;
-  width: 150px;
-}
-
-.checkbox-cell {
-  text-align: center;
-}
+.skill-col { width: 40%; }
+.project-col { text-align: center; width: 150px; }
+.checkbox-cell { text-align: center; }
 
 .skill-info {
   display: flex;
@@ -456,14 +383,7 @@ async function applyToProjects() {
   transition: color var(--transition-fast);
 }
 
-.skill-preview-line:hover {
-  color: var(--accent-primary);
-}
-
-.text-secondary {
-  color: var(--text-secondary);
-}
-.text-sm {
-  font-size: 0.875rem;
-}
+.skill-preview-line:hover { color: var(--accent-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-sm { font-size: 0.875rem; }
 </style>

@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { onMounted } from 'vue'
 import { useToast } from '../composables/useToast'
+import { useProjects } from '../composables/useProjects'
+import { useAgents } from '../composables/useAgents'
+import type { Project } from '../types'
+import { getProjectName } from '../utils/formatters'
 import TickBox from '../components/TickBox.vue'
 import BaseButton from '../components/BaseButton.vue'
 import InputField from '../components/InputField.vue'
@@ -8,63 +12,18 @@ import PageLayout from '../components/PageLayout.vue'
 import CardItem from '../components/CardItem.vue'
 import EmptyState from '../components/EmptyState.vue'
 
-interface Agent {
-  id: string
-  name: string
-  skillsPath: string
-  rulesPath: string
-}
-
-interface Project {
-  id: number
-  path: string
-  agentIds: string[]
-}
-
-const projects = ref<Project[]>([])
-const availableAgents = ref<Agent[]>([])
+const { projects, load: loadProjects, save: saveProjects, add: addProject, remove: removeProject } = useProjects()
+const { agents, load: loadAgents } = useAgents()
 const { success } = useToast()
 
 onMounted(() => {
-  const savedProjects = localStorage.getItem('projects')
-  if (savedProjects) {
-    try {
-      // Map legacy projects if any
-      const parsed = JSON.parse(savedProjects)
-      projects.value = parsed.map((p: any) => ({
-        ...p,
-        agentIds: p.agentIds || []
-      }))
-    } catch (e) {
-      console.error('Failed to parse projects from localStorage:', e)
-      addProject()
-    }
-  } else {
-    addProject()
-  }
-
-  const savedAgents = localStorage.getItem('agents')
-  if (savedAgents) {
-    try {
-      availableAgents.value = JSON.parse(savedAgents)
-    } catch (e) {
-      console.error('Failed to parse agents from localStorage:', e)
-      availableAgents.value = []
-    }
-  }
+  loadProjects()
+  loadAgents()
 })
 
 function saveConfig() {
-  localStorage.setItem('projects', JSON.stringify(projects.value))
+  saveProjects()
   success('Projects saved successfully!')
-}
-
-function addProject() {
-  projects.value.push({ id: Date.now(), path: '', agentIds: [] })
-}
-
-function removeProject(id: number) {
-  projects.value = projects.value.filter(p => p.id !== id)
 }
 
 function toggleAgent(project: Project, agentId: string) {
@@ -73,12 +32,6 @@ function toggleAgent(project: Project, agentId: string) {
   } else {
     project.agentIds.push(agentId)
   }
-}
-
-function getProjectName(path: string) {
-  if (!path) return 'New Project'
-  const parts = path.split(/[/\\]/).filter(Boolean)
-  return parts.length > 0 ? parts[parts.length - 1] : 'New Project'
 }
 </script>
 
@@ -91,9 +44,9 @@ function getProjectName(path: string) {
 
     <div class="settings-section glass">
       <div class="projects-list">
-        <CardItem 
-          v-for="project in projects" 
-          :key="project.id" 
+        <CardItem
+          v-for="project in projects"
+          :key="project.id"
           :title="getProjectName(project.path)"
         >
           <template #actions>
@@ -101,32 +54,32 @@ function getProjectName(path: string) {
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
             </BaseButton>
           </template>
-          
+
           <div class="form-row">
             <InputField label="Local Path" v-model="project.path" placeholder="/home/user/projects/app" style="flex: 2" />
           </div>
-          
+
           <div class="checkbox-group mt-3">
             <label>Supported Agents</label>
-            <div v-if="availableAgents.length === 0" class="text-secondary text-sm">
+            <div v-if="agents.length === 0" class="text-secondary text-sm">
               No agents configured. Please add them in the Agents tab.
             </div>
             <div class="agent-checkboxes">
-              <TickBox 
-                v-for="agent in availableAgents" 
-                :key="agent.id" 
+              <TickBox
+                v-for="agent in agents"
+                :key="agent.id"
                 class="agent-cb"
                 :label="agent.name"
-                :checked="project.agentIds.includes(agent.id)" 
-                @change="toggleAgent(project, agent.id)" 
+                :checked="project.agentIds.includes(agent.id)"
+                @change="toggleAgent(project, agent.id)"
               />
             </div>
           </div>
         </CardItem>
-        
-        <EmptyState 
-          v-if="projects.length === 0" 
-          message="No projects added yet. Click 'New' to get started." 
+
+        <EmptyState
+          v-if="projects.length === 0"
+          message="No projects added yet. Click 'New' to get started."
         />
       </div>
     </div>
@@ -134,8 +87,6 @@ function getProjectName(path: string) {
 </template>
 
 <style scoped>
-
-
 .settings-section {
   padding: 1.5rem;
   border-radius: var(--radius-md);
@@ -187,12 +138,6 @@ function getProjectName(path: string) {
   flex-direction: column;
   gap: 1rem;
 }
-
-
-
-
-
-
 
 .text-sm { font-size: 0.85rem; }
 .text-secondary { color: var(--text-secondary); }
