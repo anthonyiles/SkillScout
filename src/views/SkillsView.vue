@@ -105,25 +105,25 @@ onUnmounted(() => {
 })
 
 async function initializeMatrix() {
+  const nextMatrix: Record<string, Set<number>> = {}
   skills.value.forEach(skill => {
-    if (!selectionMatrix.value[skill.id]) {
-      selectionMatrix.value[skill.id] = new Set()
-    }
+    nextMatrix[skill.id] = new Set()
   })
-  
+
   try {
     const selections = await invoke<ItemSelection[]>('get_item_selections')
     if (selections) {
       for (const sel of selections) {
-        if (!selectionMatrix.value[sel.item_id]) {
-          selectionMatrix.value[sel.item_id] = new Set()
+        if (nextMatrix[sel.item_id]) {
+          nextMatrix[sel.item_id].add(sel.project_id)
         }
-        selectionMatrix.value[sel.item_id].add(sel.project_id)
       }
     }
   } catch (e) {
     console.error('Failed to load selections:', e)
   }
+
+  selectionMatrix.value = nextMatrix
 }
 
 async function syncRepo() {
