@@ -24,24 +24,28 @@ pub async fn check_pr_status(app: tauri::AppHandle, pr_url: String) -> Result<se
         .split(&['?', '#'][..])
         .next()
         .unwrap_or(path_parts[3]);
+        
+    let pull_number: u64 = pull_number
+        .parse()
+        .map_err(|_| "Invalid PR URL format".to_string())?;
 
     let api_url = format!("https://api.github.com/repos/{}/{}/pulls/{}", owner, repo, pull_number);
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
-        .map_err(|e| format!("Failed to build client: {}", e))?;
+        .map_err(|e| { eprintln!("HTTP client build error: {}", e); "Failed to initialize network client".to_string() })?;
 
     let res = client.get(&api_url)
         .header("User-Agent", "SkillScout-App")
         .header("Authorization", format!("Bearer {}", token))
-        .send().await.map_err(|e| e.to_string())?;
+        .send().await.map_err(|e| { eprintln!("GitHub API request error: {}", e); "Failed to connect to GitHub".to_string() })?;
 
     if !res.status().is_success() {
         return Err(format!("Failed to fetch PR status: {}", res.status()));
     }
 
-    let pr_info: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+    let pr_info: serde_json::Value = res.json().await.map_err(|e| { eprintln!("GitHub API JSON error: {}", e); "Failed to parse GitHub response".to_string() })?;
     let state = pr_info["state"].as_str().unwrap_or("unknown").to_string();
     let merged = pr_info["merged"].as_bool().unwrap_or(false);
     
@@ -59,20 +63,20 @@ pub async fn promote_item(
     item_name: String,
     project_path: String,
     sub_folders: Vec<String>,
-) -> Result<String, String> {
+) -> Result<serde_json::Value, String> {
     let token = load_token(&app)?;
     let (owner, repo) = parse_repo_url(&repo_url).ok_or("Invalid repository URL format.")?;
 
     let base_path = Path::new(&project_path)
         .canonicalize()
-        .map_err(|e| format!("Invalid project path: {}", e))?;
+        .map_err(|e| { eprintln!("Path canonicalization error: {}", e); format!("Invalid project path: {}", e) })?;
     let mut item_path = None;
     for folder in sub_folders {
         let candidate = base_path.join(&folder).join(&item_name);
         if candidate.exists() {
             let path = candidate
                 .canonicalize()
-                .map_err(|e| format!("Failed to resolve item path: {}", e))?;
+                .map_err(|e| { eprintln!("Path canonicalization error: {}", e); format!("Failed to resolve item path: {}", e) })?;
             if !path.starts_with(&base_path) {
                 return Err("Item path escapes the selected project".into());
             }
@@ -85,7 +89,7 @@ pub async fn promote_item(
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
-        .map_err(|e| format!("Failed to build client: {}", e))?;
+        .map_err(|e| { eprintln!("HTTP client build error: {}", e); "Failed to initialize network client".to_string() })?;
 
     let api_base = format!("https://api.github.com/repos/{}/{}", owner, repo);
 
@@ -107,7 +111,10 @@ pub async fn promote_item(
     };
 
     match process.await {
-        Ok(html_url) => Ok(html_url),
+        Ok(html_url) => Ok(serde_json::json!({
+            "url": html_url,
+            "branch": new_branch_name
+        })),
         Err(e) => {
             let _ = delete_branch(&client, &api_base, &token, &new_branch_name).await;
             Err(e)

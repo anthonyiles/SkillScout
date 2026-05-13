@@ -18,6 +18,7 @@ pub fn save_token(app: &tauri::AppHandle, token: &str) -> Result<(), String> {
     };
 
     if keyring_saved {
+        // Security: remove fallback file when keyring succeeds to prevent token leakage
         if let Ok(path) = get_token_path(app) {
             if path.exists() {
                 fs::remove_file(&path)
@@ -29,32 +30,33 @@ pub fn save_token(app: &tauri::AppHandle, token: &str) -> Result<(), String> {
 
     {
         let path = get_token_path(app)?;
-        fs::write(&path, token).map_err(|e| format!("Failed to write secure token file: {}", e))?;
-        
+
         #[cfg(unix)]
         {
-            use std::os::unix::fs::PermissionsExt;
-            let meta = fs::metadata(&path).map_err(|e| format!("Failed to stat token file: {}", e))?;
-            let mut perms = meta.permissions();
+            use std::io::Write;
+            use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+            let mut file = fs::OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .mode(0o600)
+                .open(&path)
+                .map_err(|e| format!("Failed to write secure token file: {}", e))?;
+            file.write_all(token.as_bytes())
+                .map_err(|e| format!("Failed to write secure token file: {}", e))?;
+
+            // Ensure existing files are also corrected to 0600.
+            let mut perms = fs::metadata(&path)
+                .map_err(|e| format!("Failed to stat token file: {}", e))?
+                .permissions();
             perms.set_mode(0o600);
             fs::set_permissions(&path, perms)
                 .map_err(|e| format!("Failed to harden token file permissions: {}", e))?;
         }
-    }
-    
-    Ok(())
-}
-        let path = get_token_path(app)?;
-        fs::write(&path, token).map_err(|e| format!("Failed to write secure token file: {}", e))?;
-        
-        #[cfg(unix)]
+
+        #[cfg(not(unix))]
         {
-            use std::os::unix::fs::PermissionsExt;
-            let meta = fs::metadata(&path).map_err(|e| format!("Failed to stat token file: {}", e))?;
-            let mut perms = meta.permissions();
-            perms.set_mode(0o600);
-            fs::set_permissions(&path, perms)
-                .map_err(|e| format!("Failed to harden token file permissions: {}", e))?;
+            fs::write(&path, token).map_err(|e| format!("Failed to write secure token file: {}", e))?;
         }
     }
     
