@@ -15,7 +15,7 @@ export interface Skill {
   id: string
   name: string
   folder: string
-  description: string
+  description: string | null
   filePath: string
   content: string
 }
