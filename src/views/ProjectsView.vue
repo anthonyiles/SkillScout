@@ -1,10 +1,7 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { useToast } from '../composables/useToast'
-import { useProjects } from '../composables/useProjects'
-import { useAgents } from '../composables/useAgents'
-import type { Project } from '../types'
-import { getProjectName } from '../utils/formatters'
 import TickBox from '../components/TickBox.vue'
 import BaseButton from '../components/BaseButton.vue'
 import InputField from '../components/InputField.vue'
@@ -12,18 +9,84 @@ import PageLayout from '../components/PageLayout.vue'
 import CardItem from '../components/CardItem.vue'
 import EmptyState from '../components/EmptyState.vue'
 
-const { projects, load: loadProjects, save: saveProjects, add: addProject, remove: removeProject } = useProjects()
-const { agents, load: loadAgents } = useAgents()
-const { success } = useToast()
+interface Agent {
+  id: string
+  name: string
+  skillsPath: string
+  rulesPath: string
+}
+
+interface Project {
+  id: number | null
+  path: string
+  agentIds: string[]
+  _tempId?: string
+}
+
+const projects = ref<Project[]>([])
+const availableAgents = ref<Agent[]>([])
+const { success, error } = useToast()
+
+async function loadData() {
+  try {
+    const fetchedProjects = await invoke<Project[]>('get_projects')
+    if (fetchedProjects && fetchedProjects.length > 0) {
+      projects.value = fetchedProjects.map(p => ({ ...p, _tempId: p.id?.toString() || crypto.randomUUID() }))
+    } else {
+      addProject()
+    }
+  } catch (e) {
+    console.error('Failed to load projects:', e)
+    addProject()
+  }
+
+  try {
+    const fetchedAgents = await invoke<Agent[]>('get_agents')
+    if (fetchedAgents) {
+      availableAgents.value = fetchedAgents
+    }
+  } catch (e) {
+    console.error('Failed to load agents:', e)
+  }
+}
 
 onMounted(() => {
-  loadProjects()
-  loadAgents()
+  loadData()
 })
 
-function saveConfig() {
-  saveProjects()
-  success('Projects saved successfully!')
+async function saveConfig() {
+  try {
+    const updatedProjects = []
+    for (const project of projects.value) {
+      if (!project.path) continue // skip empty
+      const saved = await invoke<Project>('save_project', { 
+        project: { id: project.id, path: project.path, agentIds: project.agentIds } 
+      })
+      updatedProjects.push({ ...saved, _tempId: saved.id?.toString() || crypto.randomUUID() })
+    }
+    projects.value = updatedProjects
+    if (projects.value.length === 0) addProject()
+    success('Projects saved successfully!')
+  } catch (e: any) {
+    error(typeof e === 'string' ? e : 'Failed to save projects')
+  }
+}
+
+function addProject() {
+  projects.value.push({ id: null, path: '', agentIds: [], _tempId: crypto.randomUUID() })
+}
+
+async function removeProject(project: Project) {
+  if (project.id) {
+    try {
+      await invoke('delete_project', { id: project.id })
+    } catch (e) {
+      error('Failed to delete project')
+      return
+    }
+  }
+  projects.value = projects.value.filter(p => p._tempId !== project._tempId)
+  if (projects.value.length === 0) addProject()
 }
 
 function toggleAgent(project: Project, agentId: string) {
@@ -32,6 +95,12 @@ function toggleAgent(project: Project, agentId: string) {
   } else {
     project.agentIds.push(agentId)
   }
+}
+
+function getProjectName(path: string) {
+  if (!path) return 'New Project'
+  const parts = path.split(/[/\\]/).filter(Boolean)
+  return parts.length > 0 ? parts[parts.length - 1] : 'New Project'
 }
 </script>
 
@@ -44,42 +113,42 @@ function toggleAgent(project: Project, agentId: string) {
 
     <div class="settings-section glass">
       <div class="projects-list">
-        <CardItem
-          v-for="project in projects"
-          :key="project.id"
+        <CardItem 
+          v-for="project in projects" 
+          :key="project._tempId" 
           :title="getProjectName(project.path)"
         >
           <template #actions>
-            <BaseButton variant="danger" icon @click="removeProject(project.id)">
+            <BaseButton variant="danger" icon @click="removeProject(project)">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
             </BaseButton>
           </template>
-
+          
           <div class="form-row">
             <InputField label="Local Path" v-model="project.path" placeholder="/home/user/projects/app" style="flex: 2" />
           </div>
-
+          
           <div class="checkbox-group mt-3">
             <label>Supported Agents</label>
-            <div v-if="agents.length === 0" class="text-secondary text-sm">
+            <div v-if="availableAgents.length === 0" class="text-secondary text-sm">
               No agents configured. Please add them in the Agents tab.
             </div>
             <div class="agent-checkboxes">
-              <TickBox
-                v-for="agent in agents"
-                :key="agent.id"
+              <TickBox 
+                v-for="agent in availableAgents" 
+                :key="agent.id" 
                 class="agent-cb"
                 :label="agent.name"
-                :checked="project.agentIds.includes(agent.id)"
-                @change="toggleAgent(project, agent.id)"
+                :checked="project.agentIds.includes(agent.id)" 
+                @change="toggleAgent(project, agent.id)" 
               />
             </div>
           </div>
         </CardItem>
-
-        <EmptyState
-          v-if="projects.length === 0"
-          message="No projects added yet. Click 'New' to get started."
+        
+        <EmptyState 
+          v-if="projects.length === 0" 
+          message="No projects added yet. Click 'New' to get started." 
         />
       </div>
     </div>
@@ -87,6 +156,8 @@ function toggleAgent(project: Project, agentId: string) {
 </template>
 
 <style scoped>
+
+
 .settings-section {
   padding: 1.5rem;
   border-radius: var(--radius-md);
@@ -138,6 +209,12 @@ function toggleAgent(project: Project, agentId: string) {
   flex-direction: column;
   gap: 1rem;
 }
+
+
+
+
+
+
 
 .text-sm { font-size: 0.85rem; }
 .text-secondary { color: var(--text-secondary); }

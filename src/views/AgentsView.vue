@@ -1,76 +1,124 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { useToast } from '../composables/useToast'
-import { useAgents } from '../composables/useAgents'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import BaseButton from '../components/BaseButton.vue'
 import InputField from '../components/InputField.vue'
 import PageLayout from '../components/PageLayout.vue'
 import CardItem from '../components/CardItem.vue'
 
-const { agents, load, save, reset } = useAgents()
-const { success } = useToast()
-const isConfirmOpen = ref(false)
+interface Agent {
+  id: string
+  name: string
+  skillsPath: string
+  rulesPath: string
+}
 
-onMounted(load)
+const agents = ref<Agent[]>([])
+const { success, error } = useToast()
 
-function saveConfig() {
-  save()
-  success('Agent configurations saved successfully!')
+async function loadAgents() {
+  try {
+    const fetched = await invoke<Agent[]>('get_agents')
+    if (fetched) {
+      agents.value = fetched
+    }
+  } catch (e) {
+    console.error('Failed to load agents:', e)
+  }
+}
+
+onMounted(() => {
+  loadAgents()
+})
+
+async function saveConfig() {
+  try {
+    for (const agent of agents.value) {
+      await invoke('save_agent', { agent })
+    }
+    success('Agent configurations saved successfully!')
+  } catch (e: any) {
+    error(typeof e === 'string' ? e : 'Failed to save agents')
+  }
 }
 
 function addAgent() {
-  agents.value.push({
-    id: `custom-${crypto.randomUUID()}`,
-    name: 'New Agent',
-    skillsPath: '',
-    rulesPath: '',
+  const uniqueId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  agents.value.push({ 
+    id: uniqueId, 
+    name: 'New Agent', 
+    skillsPath: '', 
+    rulesPath: '' 
   })
 }
 
-function removeAgent(id: string) {
-  agents.value = agents.value.filter(a => a.id !== id)
+async function removeAgent(id: string) {
+  try {
+    await invoke('delete_agent', { id })
+    agents.value = agents.value.filter(a => a.id !== id)
+    success('Agent removed.')
+  } catch (e: any) {
+    error('Failed to remove agent')
+  }
 }
 
-function executeReset() {
-  reset()
-  success('Restored default agents.')
-  isConfirmOpen.value = false
+const isConfirmOpen = ref(false)
+
+function resetToDefaults() {
+  isConfirmOpen.value = true
+}
+
+async function executeReset() {
+  try {
+    await invoke('reset_agents_to_defaults')
+    await loadAgents()
+    success('Restored default agents.')
+  } catch (e) {
+    error('Failed to reset to defaults')
+  } finally {
+    isConfirmOpen.value = false
+  }
 }
 </script>
 
 <template>
   <PageLayout title="Agents">
     <template #actions>
-      <BaseButton variant="danger" @click="isConfirmOpen = true">Reset to Defaults</BaseButton>
+      <BaseButton variant="danger" @click="resetToDefaults">Reset to Defaults</BaseButton>
       <BaseButton variant="primary" @click="saveConfig">Save</BaseButton>
     </template>
 
     <div class="settings-section glass">
       <p class="text-body mb-4">Define the relative folder paths where skills and rules should be copied for each AI agent.</p>
-
+      
       <div class="agents-list">
-        <CardItem v-for="agent in agents" :key="agent.id" :title="agent.name">
+        <CardItem v-for="agent in agents" :key="agent.id">
+          <template #title>
+            <div class="agent-name-input">
+              <input v-model="agent.name" placeholder="Agent Name" aria-label="Agent name" />
+            </div>
+          </template>
           <template #actions>
             <BaseButton variant="danger" icon @click="removeAgent(agent.id)" title="Remove Agent">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
             </BaseButton>
           </template>
-
+          
           <div class="form-row">
-            <InputField label="Agent Name" v-model="agent.name" placeholder="Agent Name" />
             <InputField label="Skills Target Path" v-model="agent.skillsPath" placeholder="e.g. .cursor/skills" />
             <InputField label="Rules Target Path" v-model="agent.rulesPath" placeholder="e.g. .cursor/rules" />
           </div>
         </CardItem>
       </div>
-
+      
       <div class="actions">
         <BaseButton @click="addAgent">Add Custom Agent</BaseButton>
       </div>
     </div>
 
-    <ConfirmModal
+    <ConfirmModal 
       :isOpen="isConfirmOpen"
       title="Reset to Defaults?"
       message="This will erase all custom agents and restore the defaults. Are you sure you want to proceed?"
@@ -83,6 +131,8 @@ function executeReset() {
 </template>
 
 <style scoped>
+
+
 .settings-section {
   padding: 1.5rem;
   border-radius: var(--radius-md);
@@ -92,6 +142,8 @@ function executeReset() {
 .mb-4 {
   margin-bottom: 1rem;
 }
+
+
 
 .form-row {
   display: flex;
@@ -104,4 +156,22 @@ function executeReset() {
   gap: 1rem;
   margin-bottom: 1rem;
 }
+
+.agent-name-input input {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--accent-primary);
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 0.25rem 0.5rem;
+}
+
+.agent-name-input input:focus {
+  background: var(--bg-base);
+  border-color: var(--accent-primary);
+}
+
+
+
+
 </style>
