@@ -4,26 +4,11 @@ import Toast from './components/Toast.vue'
 </script>
 
 <template>
-  <div class="app-layout">
+  <div class="flex h-screen w-screen overflow-hidden">
     <Toast />
     <Sidebar />
-    <main class="main-content">
+    <main class="flex-1 bg-page relative">
       <router-view />
     </main>
   </div>
 </template>
-
-<style>
-.app-layout {
-  display: flex;
-  height: 100vh;
-  width: 100vw;
-  overflow: hidden;
-}
-
-.main-content {
-  flex: 1;
-  background: var(--bg-base);
-  position: relative;
-}
-</style>

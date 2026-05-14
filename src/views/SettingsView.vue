@@ -34,30 +34,10 @@ async function saveConfig() {
       <BaseButton variant="primary" @click="saveConfig">Save</BaseButton>
     </template>
 
-    <div class="settings-section glass">
-      <h2 class="text-h2">Repository Settings</h2>
-      <p class="text-body mb-4">Configure the private GitHub repository where skills are stored. We use your local SSH agent for authentication.</p>
-      
+    <div class="glass p-6 rounded-md mb-6">
+      <h2 class="text-xl font-semibold mb-2">Repository Settings</h2>
+      <p class="text-sm text-muted mb-4">Configure the private GitHub repository where skills are stored. We use your local SSH agent for authentication.</p>
       <InputField label="SSH Clone URL" v-model="repoUrl" placeholder="git@github.com:org/repo.git" />
     </div>
   </PageLayout>
 </template>
-
-<style scoped>
-
-
-.settings-section {
-  padding: 1.5rem;
-  border-radius: var(--radius-md);
-  margin-bottom: 1.5rem;
-}
-
-.mb-4 {
-  margin-bottom: 1rem;
-}
-
-
-
-.text-sm { font-size: 0.85rem; }
-.text-secondary { color: var(--text-secondary); }
-</style>

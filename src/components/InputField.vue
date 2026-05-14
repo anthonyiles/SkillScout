@@ -39,8 +39,8 @@ function handleInput(event: Event) {
 </script>
 
 <template>
-  <div class="form-group" :class="$attrs.class" :style="$attrs.style">
-    <label v-if="label" :for="inputId">{{ label }}</label>
+  <div class="flex flex-col gap-1 mb-3 flex-1" :class="$attrs.class" :style="$attrs.style">
+    <label v-if="label" :for="inputId" class="text-sm text-muted font-medium">{{ label }}</label>
     <input
       :id="inputId"
       :type="type || 'text'"
@@ -51,19 +51,3 @@ function handleInput(event: Event) {
     />
   </div>
 </template>
-
-<style scoped>
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin-bottom: 0.75rem;
-  flex: 1;
-}
-
-.form-group label {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-</style>
