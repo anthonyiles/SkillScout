@@ -1,19 +1,21 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { invoke } from '@tauri-apps/api/core'
+import { useToast } from '../composables/useToast'
+import { checkGithubAuth, logoutGithub } from '../api'
 import logoUrl from '../assets/logo.png'
 import GitHubLoginModal from './GitHubLoginModal.vue'
 import ConfirmModal from './ConfirmModal.vue'
 
 const route = useRoute()
+const { error } = useToast()
 const isGitHubModalOpen = ref(false)
 const isDisconnectModalOpen = ref(false)
 const isAuthenticated = ref(false)
 
 onMounted(async () => {
   try {
-    isAuthenticated.value = await invoke('check_github_auth')
+    isAuthenticated.value = await checkGithubAuth()
   } catch (e) {
     console.error('Failed to verify GitHub auth:', e)
     isAuthenticated.value = false
@@ -26,10 +28,11 @@ function handleAuthenticated() {
 
 async function disconnectGitHub() {
   try {
-    await invoke('logout_github')
+    await logoutGithub()
     isAuthenticated.value = false
     isDisconnectModalOpen.value = false
-  } catch (e) {
+  } catch (e: any) {
+    error(typeof e === 'string' ? e : e.message ?? 'Failed to disconnect GitHub account.')
     console.error('Failed to log out:', e)
   }
 }

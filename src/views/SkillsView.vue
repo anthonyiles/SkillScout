@@ -8,7 +8,7 @@ interface Skill {
   id: string
   name: string
   folder: string
-  description: string
+  description: string | null
   file_path: string
   content: string
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onBeforeUnmount, nextTick } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { startGithubDeviceFlow, pollGithubToken } from '../api'
 import { useFocusTrap } from '@vueuse/integrations/useFocusTrap'
 import BaseButton from './BaseButton.vue'
 
@@ -27,12 +27,12 @@ async function startFlow() {
   errorMsg.value = ''
   
   try {
-    const res: any = await invoke('start_github_device_flow')
-    userCode.value = res.user_code
-    verificationUri.value = res.verification_uri
-    
+    const res = await startGithubDeviceFlow()
+    userCode.value = res.userCode
+    verificationUri.value = res.verificationUri
+
     // Start polling for token
-    startPolling(res.device_code, res.interval)
+    startPolling(res.deviceCode, res.interval)
   } catch (e: any) {
     errorMsg.value = e.toString()
   } finally {
@@ -49,11 +49,9 @@ function startPolling(deviceCode: string, intervalSeconds: number) {
   const poll = () => {
     pollingIntervalId = setTimeout(async () => {
       try {
-        const res: any = await invoke('poll_github_token', { 
-          deviceCode 
-        })
-        
-        if (res.access_token) {
+        const res = await pollGithubToken(deviceCode)
+
+        if (res.accessToken) {
           // Success!
           stopPolling()
           emit('authenticated')
@@ -69,7 +67,7 @@ function startPolling(deviceCode: string, intervalSeconds: number) {
             errorMsg.value = 'The code expired. Please try again.'
             stopPolling()
           } else {
-            errorMsg.value = res.error_description || res.error
+            errorMsg.value = res.errorDescription || res.error
             stopPolling()
           }
         }
