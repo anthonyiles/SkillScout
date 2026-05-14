@@ -297,12 +297,13 @@ pub fn get_project_file_hashes(project_path: String, sub_folders: Vec<String>) -
                 let skill_md = path.join("SKILL.md");
                 if skill_md.exists() {
                     fs::read_to_string(&skill_md).unwrap_or_default()
-                } else {
-                    let Ok(sub) = fs::read_dir(&path) else { String::new() };
+                } else if let Ok(sub) = fs::read_dir(&path) {
                     sub.flatten()
                         .find(|e| e.path().extension().and_then(|s| s.to_str()) == Some("md"))
                         .and_then(|e| fs::read_to_string(e.path()).ok())
                         .unwrap_or_default()
+                } else {
+                    String::new()
                 }
             } else {
                 continue;
