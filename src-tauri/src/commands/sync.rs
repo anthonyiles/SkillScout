@@ -287,22 +287,19 @@ pub fn get_project_file_hashes(project_path: String, sub_folders: Vec<String>) -
             if file_name.starts_with('.') {
                 continue;
             }
-            // Skip names already added from a prior folder
-            if hashes.iter().any(|h| h.name == file_name) {
-                continue;
-            }
             let content = if path.is_file() {
                 fs::read_to_string(&path).unwrap_or_default()
             } else if path.is_dir() {
                 let skill_md = path.join("SKILL.md");
                 if skill_md.exists() {
                     fs::read_to_string(&skill_md).unwrap_or_default()
-                } else {
-                    let Ok(sub) = fs::read_dir(&path) else { String::new() };
+                } else if let Ok(sub) = fs::read_dir(&path) {
                     sub.flatten()
                         .find(|e| e.path().extension().and_then(|s| s.to_str()) == Some("md"))
                         .and_then(|e| fs::read_to_string(e.path()).ok())
                         .unwrap_or_default()
+                } else {
+                    String::new()
                 }
             } else {
                 continue;
@@ -312,6 +309,8 @@ pub fn get_project_file_hashes(project_path: String, sub_folders: Vec<String>) -
             hashes.push(FileHash {
                 name: file_name.to_string(),
                 sha: hex::encode(hasher.finalize()),
+                folder: folder.clone(),
+                content,
             });
         }
     }

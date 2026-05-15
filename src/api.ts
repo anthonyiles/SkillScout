@@ -46,8 +46,9 @@ export function promoteItem(
   itemName: string,
   projectPath: string,
   subFolders: string[],
-): Promise<string> {
-  return invoke('promote_item', { repoUrl, itemType, itemName, projectPath, subFolders })
+  updateMode?: boolean,
+): Promise<{ url: string; branch: string }> {
+  return invoke('promote_item', { repoUrl, itemType, itemName, projectPath, subFolders, updateMode })
 }
 
 export function checkPrStatus(prUrl: string): Promise<PrStatus> {
