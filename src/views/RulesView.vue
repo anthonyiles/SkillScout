@@ -260,52 +260,57 @@ async function applyToProjects() {
     <template #actions>
       <BaseButton variant="secondary" @click="applyToProjects" :disabled="applying || loading">
         <svg v-if="!applying" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-        <span v-else class="loader"></span>
+        <span v-else class="inline-block w-[14px] h-[14px] rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
         {{ applying ? 'Applying...' : 'Apply' }}
       </BaseButton>
       <BaseButton variant="primary" @click="syncRepo" :disabled="loading || applying">
         <svg v-if="!loading" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
-        <span v-else class="loader"></span>
+        <span v-else class="inline-block w-[14px] h-[14px] rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
         {{ loading ? 'Syncing...' : 'Sync' }}
       </BaseButton>
     </template>
 
-    <EmptyState 
-      v-if="rules.length === 0 && !loading" 
+    <EmptyState
+      v-if="rules.length === 0 && !loading"
       glass
-      message="No rules loaded. Click 'Sync' to fetch rules from GitHub." 
+      message="No rules loaded. Click 'Sync' to fetch rules from GitHub."
     />
 
-    <div v-else-if="rules.length > 0" class="matrix-container glass">
-      <table class="matrix-table">
+    <div v-else-if="rules.length > 0" class="glass rounded-md overflow-x-auto">
+      <table class="w-full border-collapse text-left">
         <thead>
           <tr>
-            <th class="skill-col">Rule</th>
-            <th v-for="project in projects" :key="project.id" class="project-col">
+            <th class="py-2 px-4 border-b border-divider font-semibold text-muted bg-black/20 whitespace-nowrap w-[40%]">Rule</th>
+            <th v-for="project in projects" :key="project.id" class="py-2 px-4 border-b border-divider font-semibold text-muted bg-black/20 whitespace-nowrap text-center w-[150px]">
               {{ getProjectName(project.path) }}
             </th>
-            <th v-if="projects.length === 0" class="project-col text-secondary">
+            <th v-if="projects.length === 0" class="py-2 px-4 border-b border-divider font-semibold text-muted bg-black/20 whitespace-nowrap text-center w-[150px]">
               No projects configured
             </th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="rule in rules" :key="rule.id">
-            <td class="skill-info">
-              <div class="skill-name-row">
-                <span class="skill-name">{{ rule.name }}</span>
-                <button type="button" class="preview-eye" @click="openPreview(rule)" :aria-label="`Preview ${rule.name}`">
+          <tr v-for="rule in rules" :key="rule.id" class="hover:bg-card-hover [&:last-child>td]:border-b-0">
+            <td class="py-2 px-4 border-b border-divider">
+              <div class="flex items-center gap-[0.4rem]">
+                <span class="font-semibold text-base">{{ rule.name }}</span>
+                <button
+                  type="button"
+                  class="bg-transparent border-0 p-0 cursor-pointer text-muted flex items-center transition-colors shrink-0 hover:text-accent"
+                  @click="openPreview(rule)"
+                  :aria-label="`Preview ${rule.name}`"
+                >
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
               </div>
             </td>
-            <td v-for="project in projects" :key="project.id" class="checkbox-cell">
-              <TickBox 
+            <td v-for="project in projects" :key="project.id" class="py-2 px-4 border-b border-divider text-center">
+              <TickBox
                 :checked="isSelected(rule.id, project.id)"
                 @change="toggleSelection(rule.id, project.id)"
               />
             </td>
-            <td v-if="projects.length === 0" class="checkbox-cell text-secondary text-sm">
+            <td v-if="projects.length === 0" class="py-2 px-4 border-b border-divider text-center text-muted text-sm">
               -
             </td>
           </tr>
@@ -313,117 +318,11 @@ async function applyToProjects() {
       </table>
     </div>
 
-    <ContentModal 
-      :isOpen="isModalOpen" 
-      :title="activeRule?.name || ''" 
-      :content="activeRule?.content || ''" 
-      @close="isModalOpen = false" 
+    <ContentModal
+      :isOpen="isModalOpen"
+      :title="activeRule?.name || ''"
+      :content="activeRule?.content || ''"
+      @close="isModalOpen = false"
     />
   </PageLayout>
 </template>
-
-<style scoped>
-
-
-
-
-.loader {
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid white;
-  border-radius: 50%;
-  width: 14px;
-  height: 14px;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-
-
-.matrix-container {
-  border-radius: var(--radius-md);
-  overflow-x: auto;
-}
-
-.matrix-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-}
-
-.matrix-table th, .matrix-table td {
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.matrix-table th {
-  font-weight: 600;
-  color: var(--text-secondary);
-  background: rgba(0, 0, 0, 0.2);
-  white-space: nowrap;
-}
-
-.matrix-table tr:last-child td {
-  border-bottom: none;
-}
-
-.matrix-table tbody tr:hover {
-  background: var(--bg-surface-hover);
-}
-
-.skill-col {
-  width: 40%;
-}
-
-.project-col {
-  text-align: center;
-  width: 150px;
-}
-
-.checkbox-cell {
-  text-align: center;
-}
-
-.skill-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.skill-name {
-  font-weight: 600;
-  font-size: 1rem;
-}
-
-.skill-name-row {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.preview-eye {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  transition: color var(--transition-fast);
-  flex-shrink: 0;
-}
-
-.preview-eye:hover {
-  color: var(--accent-primary);
-}
-
-.text-secondary {
-  color: var(--text-secondary);
-}
-.text-sm {
-  font-size: 0.875rem;
-}
-</style>
