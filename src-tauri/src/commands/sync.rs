@@ -287,10 +287,6 @@ pub fn get_project_file_hashes(project_path: String, sub_folders: Vec<String>) -
             if file_name.starts_with('.') {
                 continue;
             }
-            // Skip names already added from a prior folder
-            if hashes.iter().any(|h| h.name == file_name) {
-                continue;
-            }
             let content = if path.is_file() {
                 fs::read_to_string(&path).unwrap_or_default()
             } else if path.is_dir() {
@@ -313,6 +309,8 @@ pub fn get_project_file_hashes(project_path: String, sub_folders: Vec<String>) -
             hashes.push(FileHash {
                 name: file_name.to_string(),
                 sha: hex::encode(hasher.finalize()),
+                folder: folder.clone(),
+                content,
             });
         }
     }

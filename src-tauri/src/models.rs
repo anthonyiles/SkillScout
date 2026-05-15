@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 pub struct FileHash {
     pub name: String,
     pub sha: String,
+    pub folder: String,
+    pub content: String,
 }
 
 #[derive(Serialize, Deserialize)]
