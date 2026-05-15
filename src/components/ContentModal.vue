@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch, onBeforeUnmount, ref } from 'vue'
+import { watch, onBeforeUnmount, ref, nextTick } from 'vue'
 import { useFocusTrap } from '@vueuse/integrations/useFocusTrap'
 import BaseButton from './BaseButton.vue'
 
@@ -23,8 +23,9 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 
-watch(() => props.isOpen, (isOpen) => {
+watch(() => props.isOpen, async (isOpen) => {
   if (isOpen) {
+    await nextTick()
     window.addEventListener('keydown', handleKeydown)
     activate()
   } else {

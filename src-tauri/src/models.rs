@@ -1,5 +1,13 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Serialize)]
+pub struct FileHash {
+    pub name: String,
+    pub sha: String,
+    pub folder: String,
+    pub content: String,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct DeviceAuthResponse {
     pub device_code: String,

@@ -63,6 +63,7 @@ pub async fn promote_item(
     item_name: String,
     project_path: String,
     sub_folders: Vec<String>,
+    update_mode: Option<bool>,
 ) -> Result<serde_json::Value, String> {
     let token = load_token(&app)?;
     let (owner, repo) = parse_repo_url(&repo_url).ok_or("Invalid repository URL format.")?;
@@ -95,18 +96,25 @@ pub async fn promote_item(
 
     let (default_branch, latest_sha) = get_repo_info(&client, &api_base, &token).await?;
 
+    let is_update = update_mode.unwrap_or(false);
     let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
     let safe_name = item_name.replace(|c: char| !c.is_alphanumeric(), "-");
-    let new_branch_name = format!("promote-{}-{}", safe_name, timestamp);
+    let branch_prefix = if is_update { "update" } else { "promote" };
+    let new_branch_name = format!("{}-{}-{}", branch_prefix, safe_name, timestamp);
     create_branch(&client, &api_base, &token, &new_branch_name, &latest_sha).await?;
 
     let process = async {
         let tree_entries = create_blobs_for_item(&client, &api_base, &token, &item_path, &item_name, &item_type).await?;
         let new_tree_sha = create_tree(&client, &api_base, &token, &latest_sha, tree_entries).await?;
-        let commit_message = format!("Promote {}: {}", item_type, item_name);
+        let action = if is_update { "Update" } else { "Promote" };
+        let commit_message = format!("{} {}: {}", action, item_type, item_name);
         let new_commit_sha = create_commit(&client, &api_base, &token, &commit_message, &new_tree_sha, &latest_sha).await?;
         update_branch(&client, &api_base, &token, &new_branch_name, &new_commit_sha).await?;
-        let pr_body = format!("Automated PR to promote the {} `{}` from local environment.", item_type, item_name);
+        let pr_body = if is_update {
+            format!("Automated PR to update the {} `{}` with local changes.", item_type, item_name)
+        } else {
+            format!("Automated PR to promote the {} `{}` from local environment.", item_type, item_name)
+        };
         create_pull_request(&client, &api_base, &token, &commit_message, &new_branch_name, &default_branch, &pr_body).await
     };
 

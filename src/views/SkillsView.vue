@@ -59,11 +59,6 @@ function openPreview(skill: Skill) {
   isModalOpen.value = true
 }
 
-function truncate(str: string, length: number) {
-  if (!str) return 'No preview available'
-  const clean = str.replace(/\n/g, ' ').trim()
-  return clean.length > length ? clean.substring(0, length) + '...' : clean
-}
 
 async function loadData() {
   try {
@@ -344,10 +339,11 @@ async function applyToProjects() {
         <tbody>
           <tr v-for="skill in skills" :key="skill.id">
             <td class="skill-info">
-              <div class="skill-name">{{ skill.name }}</div>
-              <div class="skill-preview-line" @click="openPreview(skill)" title="Click to view full content">
-                {{ truncate(skill.content, 35) }}
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+              <div class="skill-name-row">
+                <span class="skill-name">{{ skill.name }}</span>
+                <button type="button" class="preview-eye" @click="openPreview(skill)" :aria-label="`Preview ${skill.name}`">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
               </div>
             </td>
             <td v-for="project in projects" :key="project.id" class="checkbox-cell">
@@ -449,17 +445,25 @@ async function applyToProjects() {
   font-size: 1rem;
 }
 
-.skill-preview-line {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  cursor: pointer;
+.skill-name-row {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  transition: color var(--transition-fast);
+  gap: 0.4rem;
 }
 
-.skill-preview-line:hover {
+.preview-eye {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  transition: color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.preview-eye:hover {
   color: var(--accent-primary);
 }
 
