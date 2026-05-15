@@ -25,27 +25,11 @@
   --radius-lg: 24px;
 }
 
-/*
-  Bridge: maps legacy CSS variable names to new theme values.
-  Removed incrementally as each component is migrated to Tailwind classes.
-*/
-:root {
-  --bg-base: var(--color-page);
-  --bg-surface: var(--color-card);
-  --bg-surface-hover: var(--color-card-hover);
-  --text-primary: #ffffff;
-  --text-secondary: var(--color-muted);
-  --accent-primary: var(--color-accent);
-  --accent-primary-hover: var(--color-accent-active);
-  --accent-danger: var(--color-danger);
-  --accent-success: var(--color-success);
-  --border-color: var(--color-divider);
-  --radius-full: 9999px;
-  --transition-fast: 0.2s ease;
-  color-scheme: dark;
-}
-
 @layer base {
+  html {
+    color-scheme: dark;
+  }
+
   body {
     background-color: var(--color-page);
     color: #ffffff;
@@ -77,15 +61,6 @@
     border-color: var(--color-accent);
   }
 
-  button.primary {
-    background: var(--color-accent);
-    border-color: var(--color-accent);
-  }
-
-  button.primary:hover {
-    background: var(--color-accent-active);
-  }
-
   input {
     background: var(--color-card);
     border: 1px solid var(--color-divider);
@@ -104,15 +79,10 @@
   }
 }
 
-/* .glass — stays until Phase 6 */
+/* .glass — replaced in Phase 6 */
 .glass {
   background: rgb(30 30 30 / 0.7);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgb(255 255 255 / 0.1);
 }
-
-/* Typography utilities — replaced during component migration */
-.text-h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.75rem; }
-.text-h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
-.text-body { font-size: 0.9rem; color: var(--color-muted); }
