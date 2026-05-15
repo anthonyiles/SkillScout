@@ -40,72 +40,30 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="isOpen" class="modal-overlay" @click.self="emit('cancel')">
-    <div class="modal-content glass" role="dialog" aria-modal="true" :aria-labelledby="'modal-title-' + title" :aria-describedby="'modal-message-' + title" tabindex="-1" ref="modalContentRef">
-      <div class="modal-header">
-        <h3 class="text-h2" :id="'modal-title-' + title">{{ title }}</h3>
+  <div
+    v-if="isOpen"
+    class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000] flex items-center justify-center"
+    @click.self="emit('cancel')"
+  >
+    <div
+      ref="modalContentRef"
+      class="w-[90%] max-w-[400px] rounded-md shadow-[0_10px_40px_rgba(0,0,0,0.5)] bg-card border border-divider flex flex-col"
+      role="dialog"
+      aria-modal="true"
+      :aria-labelledby="'modal-title-' + title"
+      :aria-describedby="'modal-message-' + title"
+      tabindex="-1"
+    >
+      <div class="px-6 pt-6 pb-2">
+        <h3 class="text-xl font-semibold" :id="'modal-title-' + title">{{ title }}</h3>
       </div>
-      <div class="modal-body">
-        <p class="text-body" :id="'modal-message-' + title">{{ message }}</p>
+      <div class="px-6 pt-2 pb-6 text-muted" :id="'modal-message-' + title">
+        <p>{{ message }}</p>
       </div>
-      <div class="modal-actions">
+      <div class="flex justify-end gap-4 py-4 px-6 bg-page border-t border-divider rounded-b-md">
         <BaseButton variant="secondary" @click="emit('cancel')">{{ cancelText || 'Cancel' }}</BaseButton>
         <BaseButton :variant="danger ? 'danger' : 'primary'" @click="emit('confirm')">{{ confirmText || 'Confirm' }}</BaseButton>
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-content {
-  width: 90%;
-  max-width: 400px;
-  border-radius: var(--radius-md);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header {
-  padding: 1.5rem 1.5rem 0.5rem;
-}
-
-.modal-header h3 {
-  margin: 0;
-  color: var(--text-primary);
-}
-
-.modal-body {
-  padding: 0.5rem 1.5rem 1.5rem;
-  color: var(--text-secondary);
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  background: var(--bg-base);
-  border-top: 1px solid var(--border-color);
-  border-bottom-left-radius: var(--radius-md);
-  border-bottom-right-radius: var(--radius-md);
-}
-
-
-</style>

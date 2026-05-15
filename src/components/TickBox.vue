@@ -17,92 +17,24 @@ function onChange(event: Event) {
 </script>
 
 <template>
-  <label class="custom-checkbox-wrapper" :class="{ 'has-label': !!label }">
-    <div class="custom-checkbox">
-      <input 
-        type="checkbox" 
+  <label class="inline-flex items-center cursor-pointer group" :class="{ 'gap-2': !!label }">
+    <div class="relative w-4 h-4 flex-shrink-0">
+      <input
+        type="checkbox"
+        class="peer absolute opacity-0 w-0 h-0 m-0 p-0"
         :checked="checked"
         @change="onChange"
       />
-      <span class="checkmark"></span>
+      <span class="
+        absolute inset-0 w-4 h-4 bg-page border border-divider rounded-[4px] transition-all box-border
+        group-hover:border-accent
+        peer-checked:bg-accent peer-checked:border-accent
+        after:content-[''] after:absolute after:hidden
+        peer-checked:after:block
+        after:left-1 after:top-0 after:w-1 after:h-[9px]
+        after:border-solid after:border-white after:[border-width:0_2px_2px_0] after:rotate-45
+      "></span>
     </div>
-    <span v-if="label" class="checkbox-label">{{ label }}</span>
+    <span v-if="label" class="text-sm select-none">{{ label }}</span>
   </label>
 </template>
-
-<style scoped>
-.custom-checkbox-wrapper {
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-.custom-checkbox-wrapper.has-label {
-  gap: 0.5rem;
-}
-
-.custom-checkbox {
-  position: relative;
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-}
-
-.custom-checkbox input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-  margin: 0;
-  padding: 0;
-}
-
-.checkmark {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 16px;
-  width: 16px;
-  background-color: var(--bg-base);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  transition: all var(--transition-fast);
-  box-sizing: border-box;
-}
-
-.custom-checkbox-wrapper:hover .checkmark {
-  border-color: var(--accent-primary);
-}
-
-.custom-checkbox input:checked ~ .checkmark {
-  background-color: var(--accent-primary);
-  border-color: var(--accent-primary);
-}
-
-.checkmark:after {
-  content: "";
-  position: absolute;
-  display: none;
-}
-
-.custom-checkbox input:checked ~ .checkmark:after {
-  display: block;
-}
-
-.custom-checkbox .checkmark:after {
-  left: 4px;
-  top: 0px;
-  width: 4px;
-  height: 9px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
-.checkbox-label {
-  font-size: 0.85rem;
-  color: var(--text-primary);
-  user-select: none;
-}
-</style>

@@ -58,9 +58,9 @@ async function saveConfig() {
   try {
     const updatedProjects = []
     for (const project of projects.value) {
-      if (!project.path) continue // skip empty
-      const saved = await invoke<Project>('save_project', { 
-        project: { id: project.id, path: project.path, agentIds: project.agentIds } 
+      if (!project.path) continue
+      const saved = await invoke<Project>('save_project', {
+        project: { id: project.id, path: project.path, agentIds: project.agentIds }
       })
       updatedProjects.push({ ...saved, _tempId: saved.id?.toString() || crypto.randomUUID() })
     }
@@ -105,17 +105,17 @@ function getProjectName(path: string) {
 </script>
 
 <template>
-  <PageLayout title="Projects" style="padding-bottom: 5rem">
+  <PageLayout title="Projects" class="pb-20">
     <template #actions>
       <BaseButton @click="addProject">New</BaseButton>
       <BaseButton variant="primary" @click="saveConfig">Save</BaseButton>
     </template>
 
-    <div class="settings-section glass">
-      <div class="projects-list">
-        <CardItem 
-          v-for="project in projects" 
-          :key="project._tempId" 
+    <div class="glass p-6 rounded-md mb-6">
+      <div class="flex flex-col gap-4">
+        <CardItem
+          v-for="project in projects"
+          :key="project._tempId"
           :title="getProjectName(project.path)"
         >
           <template #actions>
@@ -123,99 +123,34 @@ function getProjectName(path: string) {
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
             </BaseButton>
           </template>
-          
-          <div class="form-row">
-            <InputField label="Local Path" v-model="project.path" placeholder="/home/user/projects/app" style="flex: 2" />
+
+          <div class="flex gap-4">
+            <InputField label="Local Path" v-model="project.path" placeholder="/home/user/projects/app" class="[flex:2]" />
           </div>
-          
-          <div class="checkbox-group mt-3">
-            <label>Supported Agents</label>
-            <div v-if="availableAgents.length === 0" class="text-secondary text-sm">
+
+          <div class="flex flex-col gap-1 mb-3 mt-3">
+            <label class="text-sm text-muted font-medium">Supported Agents</label>
+            <div v-if="availableAgents.length === 0" class="text-sm text-muted">
               No agents configured. Please add them in the Agents tab.
             </div>
-            <div class="agent-checkboxes">
-              <TickBox 
-                v-for="agent in availableAgents" 
-                :key="agent.id" 
-                class="agent-cb"
+            <div class="flex flex-wrap gap-2">
+              <TickBox
+                v-for="agent in availableAgents"
+                :key="agent.id"
+                class="bg-page py-[0.4rem] px-3 rounded-sm border border-divider transition-all hover:border-accent"
                 :label="agent.name"
-                :checked="project.agentIds.includes(agent.id)" 
-                @change="toggleAgent(project, agent.id)" 
+                :checked="project.agentIds.includes(agent.id)"
+                @change="toggleAgent(project, agent.id)"
               />
             </div>
           </div>
         </CardItem>
-        
-        <EmptyState 
-          v-if="projects.length === 0" 
-          message="No projects added yet. Click 'New' to get started." 
+
+        <EmptyState
+          v-if="projects.length === 0"
+          message="No projects added yet. Click 'New' to get started."
         />
       </div>
     </div>
   </PageLayout>
 </template>
-
-<style scoped>
-
-
-.settings-section {
-  padding: 1.5rem;
-  border-radius: var(--radius-md);
-  margin-bottom: 1.5rem;
-}
-
-.mt-3 {
-  margin-top: 0.75rem;
-}
-
-.checkbox-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin-bottom: 0.75rem;
-}
-
-.checkbox-group label {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.form-row {
-  display: flex;
-  gap: 1rem;
-}
-
-.agent-checkboxes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-:deep(.agent-cb) {
-  background: var(--bg-base);
-  padding: 0.4rem 0.75rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-color);
-  transition: all var(--transition-fast);
-}
-
-:deep(.agent-cb:hover) {
-  border-color: var(--accent-primary);
-}
-
-.projects-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-
-
-
-
-
-
-.text-sm { font-size: 0.85rem; }
-.text-secondary { color: var(--text-secondary); }
-</style>
