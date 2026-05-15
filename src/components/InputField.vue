@@ -47,6 +47,7 @@ function handleInput(event: Event) {
       :value="modelValue"
       @input="handleInput"
       :placeholder="placeholder"
+      class="bg-card border border-divider text-white py-2 px-3 rounded-sm text-[0.85rem] w-full outline-none transition-colors focus:border-accent"
       v-bind="{ ...$attrs, class: undefined, style: undefined }"
     />
   </div>

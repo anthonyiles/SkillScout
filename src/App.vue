@@ -4,7 +4,7 @@ import Toast from './components/Toast.vue'
 </script>
 
 <template>
-  <div class="flex h-screen w-screen overflow-hidden">
+  <div class="flex h-screen w-screen overflow-hidden antialiased">
     <Toast />
     <Sidebar />
     <main class="flex-1 bg-page relative">
