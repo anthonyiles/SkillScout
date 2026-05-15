@@ -90,7 +90,7 @@ async function executeReset() {
       <BaseButton variant="primary" @click="saveConfig">Save</BaseButton>
     </template>
 
-    <div class="glass p-6 rounded-md mb-6">
+    <div class="bg-card/70 backdrop-blur-md border border-white/10 p-6 rounded-md mb-6">
       <p class="text-sm text-muted mb-4">Define the relative folder paths where skills and rules should be copied for each AI agent.</p>
 
       <div class="flex flex-col gap-4 mb-4">

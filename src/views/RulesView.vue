@@ -276,7 +276,7 @@ async function applyToProjects() {
       message="No rules loaded. Click 'Sync' to fetch rules from GitHub."
     />
 
-    <div v-else-if="rules.length > 0" class="glass rounded-md overflow-x-auto">
+    <div v-else-if="rules.length > 0" class="bg-card/70 backdrop-blur-md border border-white/10 rounded-md overflow-x-auto">
       <table class="w-full border-collapse text-left">
         <thead>
           <tr>

@@ -78,11 +78,3 @@
     border-color: var(--color-accent);
   }
 }
-
-/* .glass — replaced in Phase 6 */
-.glass {
-  background: rgb(30 30 30 / 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgb(255 255 255 / 0.1);
-}

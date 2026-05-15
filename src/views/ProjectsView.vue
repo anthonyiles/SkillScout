@@ -111,7 +111,7 @@ function getProjectName(path: string) {
       <BaseButton variant="primary" @click="saveConfig">Save</BaseButton>
     </template>
 
-    <div class="glass p-6 rounded-md mb-6">
+    <div class="bg-card/70 backdrop-blur-md border border-white/10 p-6 rounded-md mb-6">
       <div class="flex flex-col gap-4">
         <CardItem
           v-for="project in projects"
