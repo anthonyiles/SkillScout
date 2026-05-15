@@ -5,7 +5,7 @@ use std::fs;
 use sha2::{Sha256, Digest};
 use hex;
 
-use crate::models::{SyncTask, RepositoryItem};
+use crate::models::{SyncTask, RepositoryItem, FileHash};
 use crate::utils::filesystem::copy_dir_all;
 use crate::db::AppState;
 use rusqlite::params;
@@ -265,6 +265,57 @@ pub async fn apply_skills(tasks: Vec<SyncTask>) -> Result<usize, String> {
     }).await.map_err(|e| { eprintln!("Spawn blocking error: {}", e); "Background task failed".to_string() })??;
     
     Ok(count)
+}
+
+#[tauri::command]
+pub fn get_project_file_hashes(project_path: String, sub_folders: Vec<String>) -> Vec<FileHash> {
+    let mut hashes: Vec<FileHash> = Vec::new();
+    let base_path = Path::new(&project_path);
+
+    for folder in &sub_folders {
+        if !is_safe_filename(folder) {
+            continue;
+        }
+        let folder_path = base_path.join(folder);
+        if !folder_path.exists() || !folder_path.is_dir() {
+            continue;
+        }
+        let Ok(entries) = fs::read_dir(folder_path) else { continue };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else { continue };
+            if file_name.starts_with('.') {
+                continue;
+            }
+            let content = if path.is_file() {
+                fs::read_to_string(&path).unwrap_or_default()
+            } else if path.is_dir() {
+                let skill_md = path.join("SKILL.md");
+                if skill_md.exists() {
+                    fs::read_to_string(&skill_md).unwrap_or_default()
+                } else if let Ok(sub) = fs::read_dir(&path) {
+                    sub.flatten()
+                        .find(|e| e.path().extension().and_then(|s| s.to_str()) == Some("md"))
+                        .and_then(|e| fs::read_to_string(e.path()).ok())
+                        .unwrap_or_default()
+                } else {
+                    String::new()
+                }
+            } else {
+                continue;
+            };
+            let mut hasher = Sha256::new();
+            hasher.update(&content);
+            hashes.push(FileHash {
+                name: file_name.to_string(),
+                sha: hex::encode(hasher.finalize()),
+                folder: folder.clone(),
+                content,
+            });
+        }
+    }
+
+    hashes
 }
 
 #[tauri::command]
