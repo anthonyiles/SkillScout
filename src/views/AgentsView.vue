@@ -24,8 +24,8 @@ async function loadAgents() {
     if (fetched) {
       agents.value = fetched
     }
-  } catch (e) {
-    console.error('Failed to load agents:', e)
+  } catch (err) {
+    console.error('Failed to load agents:', err)
   }
 }
 
@@ -39,8 +39,8 @@ async function saveConfig() {
       await invoke('save_agent', { agent })
     }
     success('Agent configurations saved successfully!')
-  } catch (e: any) {
-    error(typeof e === 'string' ? e : 'Failed to save agents')
+  } catch (err: any) {
+    error(typeof err === 'string' ? err : 'Failed to save agents')
   }
 }
 
@@ -57,9 +57,9 @@ function addAgent() {
 async function removeAgent(id: string) {
   try {
     await invoke('delete_agent', { id })
-    agents.value = agents.value.filter(a => a.id !== id)
+    agents.value = agents.value.filter(agent => agent.id !== id)
     success('Agent removed.')
-  } catch (e: any) {
+  } catch (err: any) {
     error('Failed to remove agent')
   }
 }
@@ -75,7 +75,7 @@ async function executeReset() {
     await invoke('reset_agents_to_defaults')
     await loadAgents()
     success('Restored default agents.')
-  } catch (e) {
+  } catch (err) {
     error('Failed to reset to defaults')
   } finally {
     isConfirmOpen.value = false

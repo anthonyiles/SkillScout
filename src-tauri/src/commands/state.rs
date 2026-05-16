@@ -126,8 +126,8 @@ pub fn get_projects(state: State<'_, AppState>) -> Result<Vec<Project>, String> 
             order.push(id);
             Project { id: Some(id), path, agent_ids: Vec::new() }
         });
-        if let Some(aid) = agent_id {
-            project.agent_ids.push(aid);
+        if let Some(agent_id_value) = agent_id {
+            project.agent_ids.push(agent_id_value);
         }
     }
 

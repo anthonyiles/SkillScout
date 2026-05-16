@@ -21,7 +21,7 @@ export const useToast = createSharedComposable(() => {
   }
 
   function removeToast(id: number) {
-    toasts.value = toasts.value.filter(t => t.id !== id)
+    toasts.value = toasts.value.filter(toast => toast.id !== id)
   }
 
   function error(message: string) { showToast(message, 'error') }

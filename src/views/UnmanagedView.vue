@@ -175,7 +175,7 @@ onMounted(async () => {
       for (const item of promoted) pmap[`${item.path}-${item.name}`] = item
       promotedItems.value = pmap
     }
-  } catch (e) { console.error('Failed to load promoted items:', e) }
+  } catch (err) { console.error('Failed to load promoted items:', err) }
 
   await scanLocal()
 
@@ -190,8 +190,8 @@ onMounted(async () => {
         delete promotedItems.value[key]
         if (res.merged) { mergedPrs.value.add(key); syncNeeded = true }
       }
-    } catch (e) {
-      // Keep on error
+    } catch {
+      // PR check failed — leave item in pending state
     } finally {
       checkingPrs.value.delete(key)
     }
@@ -204,7 +204,7 @@ onMounted(async () => {
         await invoke('sync_repo', { repoUrl })
         await scanLocal()
         success('Background sync complete. Managed items updated.')
-      } catch (e) { console.error('Failed background sync:', e) }
+      } catch (err) { console.error('Failed background sync:', err) }
     }
   }
 })
@@ -232,8 +232,8 @@ async function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) 
     const saved = await invoke<PromotedItem>('add_promoted_item', { item: pItem })
     success(`Successfully created PR!`)
     promotedItems.value[key] = saved
-  } catch (e: any) {
-    error(typeof e === 'string' ? e : 'Failed to promote item. Please try again.')
+  } catch (err: any) {
+    error(typeof err === 'string' ? err : 'Failed to promote item. Please try again.')
   } finally {
     promotingItem.value = null
   }
@@ -250,8 +250,8 @@ async function promoteUpdate(item: ModifiedItem, project: ProjectWithLocalItems)
     const saved = await invoke<PromotedItem>('add_promoted_item', { item: pItem })
     success(`Successfully created update PR!`)
     promotedItems.value[key] = saved
-  } catch (e: any) {
-    error(typeof e === 'string' ? e : 'Failed to create update PR. Please try again.')
+  } catch (err: any) {
+    error(typeof err === 'string' ? err : 'Failed to create update PR. Please try again.')
   } finally {
     promotingItem.value = null
   }
@@ -402,7 +402,7 @@ async function promoteUpdate(item: ModifiedItem, project: ProjectWithLocalItems)
       </template>
 
       <EmptyState
-        v-if="projects.filter(p => p.unmanaged.length > 0 || p.modified.length > 0).length === 0"
+        v-if="projects.filter(project => project.unmanaged.length > 0 || project.modified.length > 0).length === 0"
         glass
         message="No unmanaged or locally modified items found. All your local files are synced with the central repository!"
       />

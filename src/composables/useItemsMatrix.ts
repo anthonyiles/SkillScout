@@ -146,7 +146,7 @@ export function useItemsMatrix(folder: ItemFolder) {
 
       const agentPaths = new Set<string>()
       for (const agentId of project.agentIds) {
-        const agent = agents.value.find(a => a.id === agentId)
+        const agent = agents.value.find(agent => agent.id === agentId)
         const agentPath = agent && agentPathForFolder(agent)
         if (agentPath) agentPaths.add(agentPath)
       }
@@ -204,7 +204,7 @@ export function useItemsMatrix(folder: ItemFolder) {
         }
 
         for (const agentId of project.agentIds ?? []) {
-          const agent = agents.value.find(a => a.id === agentId)
+          const agent = agents.value.find(agent => agent.id === agentId)
           const agentPath = agent && agentPathForFolder(agent)
 
           if (itemIsSelected && !agent) {

@@ -146,9 +146,9 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
                                     // Try finding any .md file
                                     if let Ok(sub_entries) = fs::read_dir(&path) {
                                         for sub_entry in sub_entries.flatten() {
-                                            let p = sub_entry.path();
-                                            if p.is_file() && p.extension().and_then(|s| s.to_str()) == Some("md") {
-                                                content = fs::read_to_string(&p).unwrap_or_default();
+                                            let sub_path = sub_entry.path();
+                                            if sub_path.is_file() && sub_path.extension().and_then(|ext| ext.to_str()) == Some("md") {
+                                                content = fs::read_to_string(&sub_path).unwrap_or_default();
                                                 break;
                                             }
                                         }

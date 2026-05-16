@@ -31,12 +31,12 @@ async function loadData() {
   try {
     const fetchedProjects = await invoke<Project[]>('get_projects')
     if (fetchedProjects && fetchedProjects.length > 0) {
-      projects.value = fetchedProjects.map(p => ({ ...p, _tempId: p.id?.toString() || crypto.randomUUID() }))
+      projects.value = fetchedProjects.map(project => ({ ...project, _tempId: project.id?.toString() || crypto.randomUUID() }))
     } else {
       addProject()
     }
-  } catch (e) {
-    console.error('Failed to load projects:', e)
+  } catch (err) {
+    console.error('Failed to load projects:', err)
     addProject()
   }
 
@@ -45,8 +45,8 @@ async function loadData() {
     if (fetchedAgents) {
       availableAgents.value = fetchedAgents
     }
-  } catch (e) {
-    console.error('Failed to load agents:', e)
+  } catch (err) {
+    console.error('Failed to load agents:', err)
   }
 }
 
@@ -80,12 +80,12 @@ async function removeProject(project: Project) {
   if (project.id) {
     try {
       await invoke('delete_project', { id: project.id })
-    } catch (e) {
+    } catch (err) {
       error('Failed to delete project')
       return
     }
   }
-  projects.value = projects.value.filter(p => p._tempId !== project._tempId)
+  projects.value = projects.value.filter(existing => existing._tempId !== project._tempId)
   if (projects.value.length === 0) addProject()
 }
 
