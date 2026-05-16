@@ -19,8 +19,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let conn = db::initialize_database(app.handle())
-                .expect("Failed to initialize database");
+            let conn = db::initialize_database(app.handle())?;
             app.manage(db::AppState {
                 db: Mutex::new(conn),
             });
