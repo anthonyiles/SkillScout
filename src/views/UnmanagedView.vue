@@ -80,60 +80,87 @@ function getProjectName(path: string) {
   return parts.length > 0 ? parts[parts.length - 1] : 'New Project'
 }
 
+async function loadRepositoryIndex() {
+  const agents = await invoke<Agent[]>('get_agents')
+  if (agents) availableAgents.value = agents
+
+  const skills = await invoke<any[]>('get_repository_items', { folder: 'skills' })
+  if (skills) knownSkills.value = new Map(skills.map((skill: any) => [skill.name, { id: skill.id, sha: skill.sha }]))
+
+  const rules = await invoke<any[]>('get_repository_items', { folder: 'rules' })
+  if (rules) knownRules.value = new Map(rules.map((rule: any) => [rule.name, { id: rule.id, sha: rule.sha }]))
+}
+
+function collectAgentPaths(project: Project): { skillPaths: Set<string>; rulePaths: Set<string> } {
+  const skillPaths = new Set<string>()
+  const rulePaths = new Set<string>()
+  for (const agentId of project.agentIds) {
+    const agent = availableAgents.value.find(agent => agent.id === agentId)
+    if (agent?.skillsPath) skillPaths.add(agent.skillsPath)
+    if (agent?.rulesPath) rulePaths.add(agent.rulesPath)
+  }
+  return { skillPaths, rulePaths }
+}
+
+function classifyHashes(
+  hashes: FileHash[],
+  knownItems: Map<string, { id: string; sha: string }>,
+  itemType: 'skill' | 'rule',
+  projectPath: string,
+): { unmanaged: UnmanagedItem[]; modified: ModifiedItem[] } {
+  const unmanaged: UnmanagedItem[] = []
+  const modified: ModifiedItem[] = []
+  for (const fileHash of hashes) {
+    const known = knownItems.get(fileHash.name)
+    if (!known) {
+      unmanaged.push({ name: fileHash.name, path: projectPath, type: itemType, content: fileHash.content, subFolder: fileHash.folder })
+    } else if (known.sha !== fileHash.sha) {
+      modified.push({ name: fileHash.name, path: projectPath, type: itemType, repositoryItemId: known.id, subFolder: fileHash.folder, content: fileHash.content })
+    }
+  }
+  return { unmanaged, modified }
+}
+
+async function enrichProjectWithLocalItems(project: Project): Promise<ProjectWithLocalItems> {
+  if (!project.path || !project.agentIds?.length) {
+    return { ...project, unmanaged: [], modified: [] }
+  }
+
+  const { skillPaths, rulePaths } = collectAgentPaths(project)
+  const unmanaged: UnmanagedItem[] = []
+  const modified: ModifiedItem[] = []
+
+  if (skillPaths.size > 0) {
+    try {
+      const hashes: FileHash[] = await invoke('get_project_file_hashes', { projectPath: project.path, subFolders: Array.from(skillPaths) })
+      const classified = classifyHashes(hashes, knownSkills.value, 'skill', project.path)
+      unmanaged.push(...classified.unmanaged)
+      modified.push(...classified.modified)
+    } catch (err) { console.error(`Failed to scan skills in ${project.path}:`, err) }
+  }
+
+  if (rulePaths.size > 0) {
+    try {
+      const hashes: FileHash[] = await invoke('get_project_file_hashes', { projectPath: project.path, subFolders: Array.from(rulePaths) })
+      const classified = classifyHashes(hashes, knownRules.value, 'rule', project.path)
+      unmanaged.push(...classified.unmanaged)
+      modified.push(...classified.modified)
+    } catch (err) { console.error(`Failed to scan rules in ${project.path}:`, err) }
+  }
+
+  return { ...project, unmanaged, modified }
+}
+
 async function scanLocal() {
   scanning.value = true
   try {
-    const agents = await invoke<Agent[]>('get_agents')
-    if (agents) availableAgents.value = agents
-
-    const skills = await invoke<any[]>('get_repository_items', { folder: 'skills' })
-    if (skills) knownSkills.value = new Map(skills.map((s: any) => [s.name, { id: s.id, sha: s.sha }]))
-
-    const rules = await invoke<any[]>('get_repository_items', { folder: 'rules' })
-    if (rules) knownRules.value = new Map(rules.map((r: any) => [r.name, { id: r.id, sha: r.sha }]))
-
+    await loadRepositoryIndex()
     const rawProjects = await invoke<Project[]>('get_projects')
     if (rawProjects) {
-      const enriched: ProjectWithLocalItems[] = []
-      for (const p of rawProjects) {
-        if (!p.path || !p.agentIds) { enriched.push({ ...p, unmanaged: [], modified: [] }); continue }
-        const skillPaths = new Set<string>()
-        const rulePaths = new Set<string>()
-        for (const agentId of p.agentIds) {
-          const agent = availableAgents.value.find(a => a.id === agentId)
-          if (agent) {
-            if (agent.skillsPath) skillPaths.add(agent.skillsPath)
-            if (agent.rulesPath) rulePaths.add(agent.rulesPath)
-          }
-        }
-        const unmanaged: UnmanagedItem[] = []
-        const modified: ModifiedItem[] = []
-        if (skillPaths.size > 0) {
-          try {
-            const hashes: FileHash[] = await invoke('get_project_file_hashes', { projectPath: p.path, subFolders: Array.from(skillPaths) })
-            for (const f of hashes) {
-              const known = knownSkills.value.get(f.name)
-              if (!known) unmanaged.push({ name: f.name, path: p.path, type: 'skill', content: f.content, subFolder: f.folder })
-              else if (known.sha !== f.sha) modified.push({ name: f.name, path: p.path, type: 'skill', repositoryItemId: known.id, subFolder: f.folder, content: f.content })
-            }
-          } catch (e) { console.error(`Failed to scan skills in ${p.path}:`, e) }
-        }
-        if (rulePaths.size > 0) {
-          try {
-            const hashes: FileHash[] = await invoke('get_project_file_hashes', { projectPath: p.path, subFolders: Array.from(rulePaths) })
-            for (const f of hashes) {
-              const known = knownRules.value.get(f.name)
-              if (!known) unmanaged.push({ name: f.name, path: p.path, type: 'rule', content: f.content, subFolder: f.folder })
-              else if (known.sha !== f.sha) modified.push({ name: f.name, path: p.path, type: 'rule', repositoryItemId: known.id, subFolder: f.folder, content: f.content })
-            }
-          } catch (e) { console.error(`Failed to scan rules in ${p.path}:`, e) }
-        }
-        enriched.push({ ...p, unmanaged, modified })
-      }
-      projects.value = enriched
+      projects.value = await Promise.all(rawProjects.map(enrichProjectWithLocalItems))
     }
-  } catch (e) {
-    console.error('Failed to load data for scan:', e)
+  } catch (err) {
+    console.error('Failed to load data for scan:', err)
   } finally {
     scanning.value = false
     loading.value = false
