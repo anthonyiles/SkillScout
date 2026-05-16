@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useToast } from '../composables/useToast'
+import { formatError } from '../utils/formatError'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import BaseButton from '../components/BaseButton.vue'
 import InputField from '../components/InputField.vue'
@@ -39,8 +40,8 @@ async function saveConfig() {
       await invoke('save_agent', { agent })
     }
     success('Agent configurations saved successfully!')
-  } catch (err: any) {
-    error(typeof err === 'string' ? err : 'Failed to save agents')
+  } catch (err: unknown) {
+    error(formatError(err, 'Failed to save agents'))
   }
 }
 
@@ -59,7 +60,7 @@ async function removeAgent(id: string) {
     await invoke('delete_agent', { id })
     agents.value = agents.value.filter(agent => agent.id !== id)
     success('Agent removed.')
-  } catch (err: any) {
+  } catch {
     error('Failed to remove agent')
   }
 }

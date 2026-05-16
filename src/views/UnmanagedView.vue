@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useToast } from '../composables/useToast'
+import { formatError } from '../utils/formatError'
 import BaseButton from '../components/BaseButton.vue'
 import PageLayout from '../components/PageLayout.vue'
 import CardItem from '../components/CardItem.vue'
@@ -232,8 +233,8 @@ async function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) 
     const saved = await invoke<PromotedItem>('add_promoted_item', { item: pItem })
     success(`Successfully created PR!`)
     promotedItems.value[key] = saved
-  } catch (err: any) {
-    error(typeof err === 'string' ? err : 'Failed to promote item. Please try again.')
+  } catch (err: unknown) {
+    error(formatError(err, 'Failed to promote item. Please try again.'))
   } finally {
     promotingItem.value = null
   }
@@ -250,8 +251,8 @@ async function promoteUpdate(item: ModifiedItem, project: ProjectWithLocalItems)
     const saved = await invoke<PromotedItem>('add_promoted_item', { item: pItem })
     success(`Successfully created update PR!`)
     promotedItems.value[key] = saved
-  } catch (err: any) {
-    error(typeof err === 'string' ? err : 'Failed to create update PR. Please try again.')
+  } catch (err: unknown) {
+    error(formatError(err, 'Failed to create update PR. Please try again.'))
   } finally {
     promotingItem.value = null
   }

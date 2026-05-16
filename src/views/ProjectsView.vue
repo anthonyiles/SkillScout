@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useToast } from '../composables/useToast'
+import { formatError } from '../utils/formatError'
 import TickBox from '../components/TickBox.vue'
 import BaseButton from '../components/BaseButton.vue'
 import InputField from '../components/InputField.vue'
@@ -67,8 +68,8 @@ async function saveConfig() {
     projects.value = updatedProjects
     if (projects.value.length === 0) addProject()
     success('Projects saved successfully!')
-  } catch (e: any) {
-    error(typeof e === 'string' ? e : 'Failed to save projects')
+  } catch (err: unknown) {
+    error(formatError(err, 'Failed to save projects'))
   }
 }
 

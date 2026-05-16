@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { watch, nextTick, ref, onBeforeUnmount } from 'vue'
+import { watch, nextTick, ref } from 'vue'
+import { useEscapeKey } from '../composables/useEscapeKey'
 import BaseButton from './BaseButton.vue'
 
 const props = defineProps<{
@@ -15,27 +16,15 @@ const emit = defineEmits(['confirm', 'cancel'])
 const modalContentRef = ref<HTMLElement | null>(null)
 const previousActiveElement = ref<HTMLElement | null>(null)
 
-function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && props.isOpen) {
-    emit('cancel')
-  }
-}
+useEscapeKey(() => props.isOpen, () => emit('cancel'))
 
 watch(() => props.isOpen, (isOpen) => {
   if (isOpen) {
     previousActiveElement.value = document.activeElement as HTMLElement
-    window.addEventListener('keydown', handleKeydown)
-    nextTick(() => {
-      modalContentRef.value?.focus()
-    })
+    nextTick(() => modalContentRef.value?.focus())
   } else {
-    window.removeEventListener('keydown', handleKeydown)
     previousActiveElement.value?.focus()
   }
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 

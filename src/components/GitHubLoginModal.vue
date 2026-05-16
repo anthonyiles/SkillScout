@@ -3,6 +3,7 @@ import { ref, watch, onBeforeUnmount, nextTick } from 'vue'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { startGithubDeviceFlow, pollGithubToken } from '../api'
 import { useFocusTrap } from '@vueuse/integrations/useFocusTrap'
+import { useEscapeKey } from '../composables/useEscapeKey'
 import BaseButton from './BaseButton.vue'
 
 const props = defineProps<{
@@ -30,8 +31,8 @@ async function startFlow() {
     userCode.value = res.userCode
     verificationUri.value = res.verificationUri
     startPolling(res.deviceCode, res.interval)
-  } catch (e: any) {
-    errorMsg.value = e.toString()
+  } catch (err: unknown) {
+    errorMsg.value = err instanceof Error ? err.message : String(err)
   } finally {
     isGenerating.value = false
   }
@@ -52,7 +53,7 @@ function startPolling(deviceCode: string, intervalSeconds: number) {
           else if (res.error === 'expired_token') { errorMsg.value = 'The code expired. Please try again.'; stopPolling() }
           else { errorMsg.value = res.errorDescription || res.error; stopPolling() }
         }
-      } catch (e: any) { errorMsg.value = e.toString(); stopPolling() }
+      } catch (err: unknown) { errorMsg.value = err instanceof Error ? err.message : String(err); stopPolling() }
     }, intervalMs)
   }
   poll()
@@ -72,7 +73,7 @@ async function copyCode() {
       await navigator.clipboard.writeText(userCode.value)
       copySuccessMsg.value = 'Code copied to clipboard!'
       setTimeout(() => copySuccessMsg.value = '', 3000)
-    } catch (e: any) { errorMsg.value = 'Failed to copy code to clipboard.' }
+    } catch { errorMsg.value = 'Failed to copy code to clipboard.' }
   }
 }
 
@@ -82,27 +83,24 @@ async function copyUri() {
       await navigator.clipboard.writeText(verificationUri.value)
       copySuccessMsg.value = 'URL copied to clipboard!'
       setTimeout(() => copySuccessMsg.value = '', 3000)
-    } catch (e: any) { errorMsg.value = 'Failed to copy URL to clipboard.' }
+    } catch { errorMsg.value = 'Failed to copy URL to clipboard.' }
   }
 }
 
 function close() { stopPolling(); emit('close') }
 
-function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && props.isOpen) close()
-}
+useEscapeKey(() => props.isOpen, close)
 
 watch(() => props.isOpen, async (isOpen) => {
   if (isOpen) {
-    window.addEventListener('keydown', handleKeydown)
     await nextTick(); activate(); startFlow()
   } else {
-    window.removeEventListener('keydown', handleKeydown); deactivate(); stopPolling()
+    deactivate(); stopPolling()
     userCode.value = ''; verificationUri.value = ''; errorMsg.value = ''; isGenerating.value = false
   }
 }, { immediate: true })
 
-onBeforeUnmount(() => { window.removeEventListener('keydown', handleKeydown); deactivate(); stopPolling() })
+onBeforeUnmount(() => { deactivate(); stopPolling() })
 </script>
 
 <template>

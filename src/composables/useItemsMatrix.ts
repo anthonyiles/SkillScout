@@ -2,6 +2,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useToast } from './useToast'
+import { formatError } from '../utils/formatError'
 
 export interface RepositoryItem {
   id: string
@@ -116,8 +117,8 @@ export function useItemsMatrix(folder: ItemFolder) {
       const count = await invoke<number>('sync_repo', { repoUrl })
       success(`Successfully synced repository! (${count} items processed)`)
       await loadData()
-    } catch (err: any) {
-      error(typeof err === 'string' ? err : 'Failed to sync repository. Please try again.')
+    } catch (err: unknown) {
+      error(formatError(err, 'Failed to sync repository. Please try again.'))
     } finally {
       loading.value = false
     }
@@ -238,8 +239,8 @@ export function useItemsMatrix(folder: ItemFolder) {
     try {
       await invoke('apply_skills', { tasks })
       success(`Successfully updated ${folder} across your projects!`)
-    } catch (err: any) {
-      error(typeof err === 'string' ? err : `Failed to apply ${folder} to projects.`)
+    } catch (err: unknown) {
+      error(formatError(err, `Failed to apply ${folder} to projects.`))
     } finally {
       applying.value = false
     }

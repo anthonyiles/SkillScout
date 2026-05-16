@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useToast } from '../composables/useToast'
+import { formatError } from '../utils/formatError'
 import BaseButton from '../components/BaseButton.vue'
 import InputField from '../components/InputField.vue'
 import PageLayout from '../components/PageLayout.vue'
@@ -34,8 +35,8 @@ async function saveConfig() {
   try {
     await invoke('set_setting', { key: 'repoUrl', value: repoUrl.value.trim() })
     success('Configuration saved successfully!')
-  } catch (e: any) {
-    error(typeof e === 'string' ? e : 'Failed to save configuration')
+  } catch (err: unknown) {
+    error(formatError(err, 'Failed to save configuration'))
   }
 }
 </script>

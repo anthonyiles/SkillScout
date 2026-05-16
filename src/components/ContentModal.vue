@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { watch, onBeforeUnmount, ref, nextTick } from 'vue'
 import { useFocusTrap } from '@vueuse/integrations/useFocusTrap'
+import { useEscapeKey } from '../composables/useEscapeKey'
 import BaseButton from './BaseButton.vue'
 
 const props = defineProps<{
@@ -17,25 +18,18 @@ function close() {
   emit('close')
 }
 
-function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && props.isOpen) {
-    close()
-  }
-}
+useEscapeKey(() => props.isOpen, close)
 
 watch(() => props.isOpen, async (isOpen) => {
   if (isOpen) {
     await nextTick()
-    window.addEventListener('keydown', handleKeydown)
     activate()
   } else {
-    window.removeEventListener('keydown', handleKeydown)
     deactivate()
   }
 }, { immediate: true })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleKeydown)
   deactivate()
 })
 </script>
