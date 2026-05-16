@@ -8,6 +8,7 @@ import InputField from '../components/InputField.vue'
 import PageLayout from '../components/PageLayout.vue'
 
 const repoUrl = ref('')
+const saving = ref(false)
 const { success, error } = useToast()
 
 const GITHUB_HTTPS_PATTERN = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+(\.git)?$/
@@ -32,11 +33,14 @@ async function saveConfig() {
     error('Repository URL must be a GitHub HTTPS or SSH URL (e.g. git@github.com:org/repo.git)')
     return
   }
+  saving.value = true
   try {
     await invoke('set_setting', { key: 'repoUrl', value: repoUrl.value.trim() })
     success('Configuration saved successfully!')
   } catch (err: unknown) {
     error(formatError(err, 'Failed to save configuration'))
+  } finally {
+    saving.value = false
   }
 }
 </script>
@@ -44,7 +48,7 @@ async function saveConfig() {
 <template>
   <PageLayout title="Settings">
     <template #actions>
-      <BaseButton variant="primary" @click="saveConfig">Save</BaseButton>
+      <BaseButton variant="primary" @click="saveConfig" :disabled="saving">{{ saving ? 'Saving...' : 'Save' }}</BaseButton>
     </template>
 
     <div class="bg-card/70 backdrop-blur-md border border-white/10 p-6 rounded-md mb-6">

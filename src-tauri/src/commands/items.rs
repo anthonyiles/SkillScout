@@ -5,20 +5,20 @@ use tauri::{command, State};
 
 #[command]
 pub fn get_repository_items(state: State<'_, AppState>, folder: Option<String>) -> Result<Vec<RepositoryItem>, String> {
-    let conn = state.db.lock().map_err(|e| { eprintln!("Database lock error: {}", e); "Database busy".to_string() })?;
-    
-    let mut query = String::from("SELECT id, name, folder, description, file_path, content, sha, last_synced FROM repository_items");
+    let conn = state.lock_conn();
+
+    let base_query = "SELECT id, name, folder, description, file_path, content, sha, last_synced FROM repository_items";
     let mut items = Vec::new();
 
-    if let Some(f) = folder {
-        query.push_str(" WHERE folder = ?1");
-        let mut stmt = conn.prepare(&query).map_err(|e| { eprintln!("Database prepare error: {}", e); "Failed to fetch items".to_string() })?;
-        let items_iter = stmt.query_map(params![f], row_to_repo_item).map_err(|e| { eprintln!("Database query error: {}", e); "Failed to fetch items".to_string() })?;
-        for i in items_iter { items.push(i.map_err(|e| { eprintln!("Database row error: {}", e); "Corrupt data in database".to_string() })?); }
+    if let Some(folder_name) = folder {
+        let query = format!("{} WHERE folder = ?1", base_query);
+        let mut stmt = conn.prepare(&query).map_err(|e| { eprintln!("Failed to prepare items query: {}", e); "Failed to fetch items".to_string() })?;
+        let iter = stmt.query_map(params![folder_name], row_to_repo_item).map_err(|e| { eprintln!("Failed to query items: {}", e); "Failed to fetch items".to_string() })?;
+        for item in iter { items.push(item.map_err(|e| { eprintln!("Corrupt item row: {}", e); "Corrupt data in database".to_string() })?); }
     } else {
-        let mut stmt = conn.prepare(&query).map_err(|e| { eprintln!("Database prepare error: {}", e); "Failed to fetch items".to_string() })?;
-        let items_iter = stmt.query_map([], row_to_repo_item).map_err(|e| { eprintln!("Database query error: {}", e); "Failed to fetch items".to_string() })?;
-        for i in items_iter { items.push(i.map_err(|e| { eprintln!("Database row error: {}", e); "Corrupt data in database".to_string() })?); }
+        let mut stmt = conn.prepare(base_query).map_err(|e| { eprintln!("Failed to prepare items query: {}", e); "Failed to fetch items".to_string() })?;
+        let iter = stmt.query_map([], row_to_repo_item).map_err(|e| { eprintln!("Failed to query items: {}", e); "Failed to fetch items".to_string() })?;
+        for item in iter { items.push(item.map_err(|e| { eprintln!("Corrupt item row: {}", e); "Corrupt data in database".to_string() })?); }
     }
 
     Ok(items)
@@ -39,57 +39,58 @@ fn row_to_repo_item(row: &rusqlite::Row) -> rusqlite::Result<RepositoryItem> {
 
 #[command]
 pub fn get_item_selections(state: State<'_, AppState>) -> Result<Vec<ItemSelection>, String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let mut stmt = conn.prepare("SELECT item_id, project_id, applied_sha FROM item_selections").map_err(|e| { eprintln!("Database prepare error: {}", e); "Failed to fetch selections".to_string() })?;
-    
+    let conn = state.lock_conn();
+    let mut stmt = conn.prepare("SELECT item_id, project_id, applied_sha FROM item_selections")
+        .map_err(|e| { eprintln!("Failed to prepare selections query: {}", e); "Failed to fetch selections".to_string() })?;
+
     let iter = stmt.query_map([], |row| {
         Ok(ItemSelection {
             item_id: row.get(0)?,
             project_id: row.get(1)?,
             applied_sha: row.get(2)?,
         })
-    }).map_err(|e| { eprintln!("Database query error: {}", e); "Failed to fetch selections".to_string() })?;
+    }).map_err(|e| { eprintln!("Failed to query selections: {}", e); "Failed to fetch selections".to_string() })?;
 
     let mut result = Vec::new();
-    for i in iter { result.push(i.map_err(|e| { eprintln!("Database row error: {}", e); "Corrupt selection data".to_string() })?); }
+    for selection in iter { result.push(selection.map_err(|e| { eprintln!("Corrupt selection row: {}", e); "Corrupt selection data".to_string() })?); }
     Ok(result)
 }
 
 #[command]
 pub fn toggle_item_selection(state: State<'_, AppState>, item_id: String, project_id: i64) -> Result<(), String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    
-    // Try to delete first; if no rows affected, insert
+    let conn = state.lock_conn();
+
     let deleted = conn.execute(
         "DELETE FROM item_selections WHERE item_id = ?1 AND project_id = ?2",
-        params![item_id, project_id]
-    ).map_err(|e| { eprintln!("Database delete error: {}", e); "Failed to update selection".to_string() })?;
-    
+        params![item_id, project_id],
+    ).map_err(|e| { eprintln!("Failed to delete selection: {}", e); "Failed to update selection".to_string() })?;
+
     if deleted == 0 {
         conn.execute(
             "INSERT INTO item_selections (item_id, project_id) VALUES (?1, ?2)",
-            params![item_id, project_id]
-        ).map_err(|e| { eprintln!("Database insert error: {}", e); "Failed to update selection".to_string() })?;
+            params![item_id, project_id],
+        ).map_err(|e| { eprintln!("Failed to insert selection: {}", e); "Failed to update selection".to_string() })?;
     }
-    
+
     Ok(())
 }
 
 #[command]
 pub fn update_applied_sha(state: State<'_, AppState>, item_id: String, project_id: i64, sha: String) -> Result<(), String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = state.lock_conn();
     conn.execute(
         "UPDATE item_selections SET applied_sha = ?1 WHERE item_id = ?2 AND project_id = ?3",
         params![sha, item_id, project_id],
-    ).map_err(|e| { eprintln!("Database update error: {}", e); "Failed to update selection status".to_string() })?;
+    ).map_err(|e| { eprintln!("Failed to update applied sha: {}", e); "Failed to update selection status".to_string() })?;
     Ok(())
 }
 
 #[command]
 pub fn get_promoted_items(state: State<'_, AppState>) -> Result<Vec<PromotedItem>, String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let mut stmt = conn.prepare("SELECT id, name, path, item_type, repository_item_id, url, branch FROM promoted_items").map_err(|e| { eprintln!("Database prepare error: {}", e); "Failed to fetch promoted items".to_string() })?;
-    
+    let conn = state.lock_conn();
+    let mut stmt = conn.prepare("SELECT id, name, path, item_type, repository_item_id, url, branch FROM promoted_items")
+        .map_err(|e| { eprintln!("Failed to prepare promoted items query: {}", e); "Failed to fetch promoted items".to_string() })?;
+
     let iter = stmt.query_map([], |row| {
         Ok(PromotedItem {
             id: Some(row.get(0)?),
@@ -100,21 +101,21 @@ pub fn get_promoted_items(state: State<'_, AppState>) -> Result<Vec<PromotedItem
             url: row.get(5)?,
             branch: row.get(6)?,
         })
-    }).map_err(|e| { eprintln!("Database query error: {}", e); "Failed to fetch promoted items".to_string() })?;
+    }).map_err(|e| { eprintln!("Failed to query promoted items: {}", e); "Failed to fetch promoted items".to_string() })?;
 
     let mut result = Vec::new();
-    for i in iter { result.push(i.map_err(|e| { eprintln!("Database row error: {}", e); "Corrupt promoted item data".to_string() })?); }
+    for promoted in iter { result.push(promoted.map_err(|e| { eprintln!("Corrupt promoted item row: {}", e); "Corrupt promoted item data".to_string() })?); }
     Ok(result)
 }
 
 #[command]
 pub fn add_promoted_item(state: State<'_, AppState>, item: PromotedItem) -> Result<PromotedItem, String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = state.lock_conn();
     conn.execute(
         "INSERT INTO promoted_items (name, path, item_type, repository_item_id, url, branch) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![item.name, item.path, item.item_type, item.repository_item_id, item.url, item.branch],
-    ).map_err(|e| { eprintln!("Database insert error: {}", e); "Failed to save promoted item".to_string() })?;
-    
+    ).map_err(|e| { eprintln!("Failed to insert promoted item: {}", e); "Failed to save promoted item".to_string() })?;
+
     let mut saved = item;
     saved.id = Some(conn.last_insert_rowid());
     Ok(saved)
@@ -122,7 +123,8 @@ pub fn add_promoted_item(state: State<'_, AppState>, item: PromotedItem) -> Resu
 
 #[command]
 pub fn remove_promoted_item(state: State<'_, AppState>, id: i64) -> Result<(), String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM promoted_items WHERE id = ?1", params![id]).map_err(|e| { eprintln!("Database delete error: {}", e); "Failed to remove promoted item".to_string() })?;
+    let conn = state.lock_conn();
+    conn.execute("DELETE FROM promoted_items WHERE id = ?1", params![id])
+        .map_err(|e| { eprintln!("Failed to remove promoted item: {}", e); "Failed to remove promoted item".to_string() })?;
     Ok(())
 }

@@ -26,6 +26,7 @@ interface Project {
 
 const projects = ref<Project[]>([])
 const availableAgents = ref<Agent[]>([])
+const saving = ref(false)
 const { success, error } = useToast()
 
 async function loadData() {
@@ -56,6 +57,7 @@ onMounted(() => {
 })
 
 async function saveConfig() {
+  saving.value = true
   try {
     const updatedProjects = []
     for (const project of projects.value) {
@@ -70,6 +72,8 @@ async function saveConfig() {
     success('Projects saved successfully!')
   } catch (err: unknown) {
     error(formatError(err, 'Failed to save projects'))
+  } finally {
+    saving.value = false
   }
 }
 
@@ -108,15 +112,15 @@ function getProjectName(path: string) {
 <template>
   <PageLayout title="Projects" class="pb-20">
     <template #actions>
-      <BaseButton @click="addProject">New</BaseButton>
-      <BaseButton variant="primary" @click="saveConfig">Save</BaseButton>
+      <BaseButton @click="addProject" :disabled="saving">New</BaseButton>
+      <BaseButton variant="primary" @click="saveConfig" :disabled="saving">{{ saving ? 'Saving...' : 'Save' }}</BaseButton>
     </template>
 
     <div class="bg-card/70 backdrop-blur-md border border-white/10 p-6 rounded-md mb-6">
       <div class="flex flex-col gap-4">
         <CardItem
           v-for="project in projects"
-          :key="project._tempId"
+          :key="project.id?.toString() ?? project._tempId"
           :title="getProjectName(project.path)"
         >
           <template #actions>

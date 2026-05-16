@@ -17,6 +17,7 @@ interface Agent {
 }
 
 const agents = ref<Agent[]>([])
+const saving = ref(false)
 const { success, error } = useToast()
 
 async function loadAgents() {
@@ -35,6 +36,7 @@ onMounted(() => {
 })
 
 async function saveConfig() {
+  saving.value = true
   try {
     for (const agent of agents.value) {
       await invoke('save_agent', { agent })
@@ -42,6 +44,8 @@ async function saveConfig() {
     success('Agent configurations saved successfully!')
   } catch (err: unknown) {
     error(formatError(err, 'Failed to save agents'))
+  } finally {
+    saving.value = false
   }
 }
 
@@ -87,8 +91,8 @@ async function executeReset() {
 <template>
   <PageLayout title="Agents">
     <template #actions>
-      <BaseButton variant="danger" @click="resetToDefaults">Reset to Defaults</BaseButton>
-      <BaseButton variant="primary" @click="saveConfig">Save</BaseButton>
+      <BaseButton variant="danger" @click="resetToDefaults" :disabled="saving">Reset to Defaults</BaseButton>
+      <BaseButton variant="primary" @click="saveConfig" :disabled="saving">{{ saving ? 'Saving...' : 'Save' }}</BaseButton>
     </template>
 
     <div class="bg-card/70 backdrop-blur-md border border-white/10 p-6 rounded-md mb-6">
