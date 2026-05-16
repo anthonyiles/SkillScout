@@ -1,4 +1,5 @@
 mod db;
+mod error;
 mod models;
 mod utils;
 mod github;

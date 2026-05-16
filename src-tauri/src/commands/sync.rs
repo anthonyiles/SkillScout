@@ -5,12 +5,13 @@ use std::fs;
 use sha2::{Sha256, Digest};
 use hex;
 
+use crate::error::SkillScoutError;
 use crate::models::{SyncTask, RepositoryItem, FileHash};
 use crate::utils::filesystem::copy_dir_all;
 use crate::db::AppState;
 use rusqlite::params;
 
-fn validate_repo_url(url: &str) -> Result<(), String> {
+fn validate_repo_url(url: &str) -> Result<(), SkillScoutError> {
     let url = url.trim();
 
     let is_https = url.starts_with("https://github.com/") && {
@@ -26,33 +27,35 @@ fn validate_repo_url(url: &str) -> Result<(), String> {
     };
 
     if !is_https && !is_ssh {
-        return Err("Repository URL must be a GitHub HTTPS or SSH URL (e.g. https://github.com/org/repo or git@github.com:org/repo)".to_string());
+        return Err(SkillScoutError::RepoUrlInvalid(
+            "Repository URL must be a GitHub HTTPS or SSH URL (e.g. https://github.com/org/repo or git@github.com:org/repo)".to_string()
+        ));
     }
 
     let forbidden_chars = ['`', '$', ';', '&', '|', '(', ')', '<', '>', '\n', '\r', '\0'];
     if url.chars().any(|c| forbidden_chars.contains(&c)) {
-        return Err("Repository URL contains invalid characters".to_string());
+        return Err(SkillScoutError::RepoUrlInvalid("Repository URL contains invalid characters".to_string()));
     }
 
     Ok(())
 }
 
 #[tauri::command]
-pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_url: String) -> Result<usize, String> {
+pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_url: String) -> Result<usize, SkillScoutError> {
     validate_repo_url(&repo_url)?;
 
-    let app_data_dir = app.path().app_data_dir().map_err(|e| { eprintln!("App data dir error: {}", e); "Failed to resolve app data directory".to_string() })?;
-    
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|_| SkillScoutError::FileSystemError("Failed to resolve app data directory".to_string()))?;
+
     let skills = tauri::async_runtime::spawn_blocking(move || {
         if !app_data_dir.exists() {
-            fs::create_dir_all(&app_data_dir).map_err(|e| e.to_string())?;
+            fs::create_dir_all(&app_data_dir).map_err(|e| SkillScoutError::FileSystemError(e.to_string()))?;
         }
-        
+
         let repo_dir = app_data_dir.join("skills_repo");
         let git_dir = repo_dir.join(".git");
-        
+
         if git_dir.exists() {
-            // Check if the URL has changed
             let remote_output = Command::new("git")
                 .arg("-C")
                 .arg(&repo_dir)
@@ -60,63 +63,59 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
                 .arg("get-url")
                 .arg("origin")
                 .output()
-                .map_err(|e| format!("Failed to get remote URL: {}", e))?;
-                
+                .map_err(|e| SkillScoutError::GitOperationFailed(e.to_string()))?;
+
             if !remote_output.status.success() {
-                let err = String::from_utf8_lossy(&remote_output.stderr);
-                return Err(format!("Failed to get remote URL: {}", err));
+                let stderr = String::from_utf8_lossy(&remote_output.stderr);
+                return Err(SkillScoutError::GitOperationFailed(format!("Failed to get remote URL: {}", stderr)));
             }
-            
+
             let current_url = String::from_utf8_lossy(&remote_output.stdout).trim().to_string();
-            
+
             if current_url != repo_url.trim() {
-                // URL changed, remove the directory and re-clone
-                fs::remove_dir_all(&repo_dir).map_err(|e| format!("Failed to clear old repo: {}", e))?;
-                
+                fs::remove_dir_all(&repo_dir)
+                    .map_err(|e| SkillScoutError::FileSystemError(format!("Failed to clear old repo: {}", e)))?;
+
                 let output = Command::new("git")
                     .arg("clone")
                     .arg(&repo_url)
                     .arg(&repo_dir)
                     .output()
-                    .map_err(|e| format!("Failed to execute git clone: {}", e))?;
-                    
+                    .map_err(|e| SkillScoutError::GitOperationFailed(e.to_string()))?;
+
                 if !output.status.success() {
-                    let err = String::from_utf8_lossy(&output.stderr);
-                    return Err(format!("Git clone failed: {}", err));
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    return Err(SkillScoutError::GitOperationFailed(format!("Git clone failed: {}", stderr)));
                 }
             } else {
-                // Repo exists and URL matches, pull latest changes
                 let output = Command::new("git")
                     .arg("-C")
                     .arg(&repo_dir)
                     .arg("pull")
                     .output()
-                    .map_err(|e| format!("Failed to execute git pull: {}", e))?;
-                    
+                    .map_err(|e| SkillScoutError::GitOperationFailed(e.to_string()))?;
+
                 if !output.status.success() {
-                    let err = String::from_utf8_lossy(&output.stderr);
-                    return Err(format!("Git pull failed: {}", err));
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    return Err(SkillScoutError::GitOperationFailed(format!("Git pull failed: {}", stderr)));
                 }
             }
         } else {
-            // Repo doesn't exist, clone it
             let output = Command::new("git")
                 .arg("clone")
                 .arg(&repo_url)
                 .arg(&repo_dir)
                 .output()
-                .map_err(|e| format!("Failed to execute git clone: {}", e))?;
-                
+                .map_err(|e| SkillScoutError::GitOperationFailed(e.to_string()))?;
+
             if !output.status.success() {
-                let err = String::from_utf8_lossy(&output.stderr);
-                return Err(format!("Git clone failed: {}", err));
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(SkillScoutError::GitOperationFailed(format!("Git clone failed: {}", stderr)));
             }
         }
-        
-        // Read the skills from the cloned repo
+
         let mut skills = Vec::new();
-        
-        // Helper function to read skills from a directory
+
         let mut read_folder = |folder_name: &str| {
             let folder_path = repo_dir.join(folder_name);
             if folder_path.exists() && folder_path.is_dir() {
@@ -179,26 +178,27 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
         read_folder("skills");
         read_folder("rules");
         
-        Ok::<Vec<RepositoryItem>, String>(skills)
-    }).await.map_err(|e| { eprintln!("Spawn blocking error: {}", e); "Background task failed".to_string() })??;
-    
-    // Save to DB
+        Ok::<Vec<RepositoryItem>, SkillScoutError>(skills)
+    }).await.map_err(|e| {
+        eprintln!("Spawn blocking error: {}", e);
+        SkillScoutError::GitOperationFailed("Background task failed".to_string())
+    })??;
+
     let count = skills.len();
-    let mut conn = state.db.lock().map_err(|e| { eprintln!("Database lock error: {}", e); "Database busy".to_string() })?;
-    let tx = conn.transaction().map_err(|e| { eprintln!("Database transaction error: {}", e); "Database busy".to_string() })?;
-    
-    // Clear old items not in the newly synced list (or just overwrite)
-    let current_ids: Vec<String> = skills.iter().map(|s| s.id.clone()).collect();
-    
-    // Create placeholders for NOT IN query
+    let mut conn = state.lock_conn();
+    let tx = conn.transaction().map_err(|_| SkillScoutError::DatabaseBusy)?;
+
+    let current_ids: Vec<String> = skills.iter().map(|item| item.id.clone()).collect();
     let placeholders = current_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-    
+
     if !current_ids.is_empty() {
         let query = format!("DELETE FROM repository_items WHERE id NOT IN ({})", placeholders);
-        let params: Vec<&dyn rusqlite::ToSql> = current_ids.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
-        tx.execute(&query, rusqlite::params_from_iter(params)).map_err(|e| { eprintln!("Database execute error: {}", e); "Failed to cleanup repository items".to_string() })?;
+        let params: Vec<&dyn rusqlite::ToSql> = current_ids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
+        tx.execute(&query, rusqlite::params_from_iter(params))
+            .map_err(|e| SkillScoutError::DatabaseError(format!("Failed to clean up stale items: {}", e)))?;
     } else {
-        tx.execute("DELETE FROM repository_items", []).map_err(|e| { eprintln!("Database execute error: {}", e); "Failed to cleanup repository items".to_string() })?;
+        tx.execute("DELETE FROM repository_items", [])
+            .map_err(|e| SkillScoutError::DatabaseError(e.to_string()))?;
     }
 
     for skill in skills {
@@ -208,10 +208,10 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
              ON CONFLICT(id) DO UPDATE SET 
              name = ?2, folder = ?3, description = ?4, file_path = ?5, content = ?6, sha = ?7, last_synced = CURRENT_TIMESTAMP",
             params![skill.id, skill.name, skill.folder, skill.description, skill.file_path, skill.content, skill.sha]
-        ).map_err(|e| { eprintln!("Database execute error: {}", e); "Failed to save repository item".to_string() })?;
+        ).map_err(|e| SkillScoutError::DatabaseError(format!("Failed to save item: {}", e)))?;
     }
-    
-    tx.commit().map_err(|e| { eprintln!("Database commit error: {}", e); "Failed to save changes".to_string() })?;
+
+    tx.commit().map_err(|e| SkillScoutError::DatabaseError(format!("Failed to commit sync: {}", e)))?;
 
     // Inform the frontend of a successful sync
     let _ = app.emit("repo_synced", ());
