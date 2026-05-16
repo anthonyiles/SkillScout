@@ -18,49 +18,15 @@ pub fn save_token(app: &tauri::AppHandle, token: &str) -> Result<(), String> {
     };
 
     if keyring_saved {
-        // Security: remove fallback file when keyring succeeds to prevent token leakage
         if let Ok(path) = get_token_path(app) {
             if path.exists() {
-                fs::remove_file(&path)
-                    .map_err(|e| format!("Failed to remove token fallback file: {}", e))?;
+                let _ = fs::remove_file(&path);
             }
         }
         return Ok(());
     }
 
-    {
-        let path = get_token_path(app)?;
-
-        #[cfg(unix)]
-        {
-            use std::io::Write;
-            use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-            let mut file = fs::OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .write(true)
-                .mode(0o600)
-                .open(&path)
-                .map_err(|e| format!("Failed to write secure token file: {}", e))?;
-            file.write_all(token.as_bytes())
-                .map_err(|e| format!("Failed to write secure token file: {}", e))?;
-
-            // Ensure existing files are also corrected to 0600.
-            let mut perms = fs::metadata(&path)
-                .map_err(|e| format!("Failed to stat token file: {}", e))?
-                .permissions();
-            perms.set_mode(0o600);
-            fs::set_permissions(&path, perms)
-                .map_err(|e| format!("Failed to harden token file permissions: {}", e))?;
-        }
-
-        #[cfg(not(unix))]
-        {
-            fs::write(&path, token).map_err(|e| format!("Failed to write secure token file: {}", e))?;
-        }
-    }
-    
-    Ok(())
+    save_token_to_file(app, token)
 }
 
 pub fn load_token(app: &tauri::AppHandle) -> Result<String, String> {
@@ -70,6 +36,47 @@ pub fn load_token(app: &tauri::AppHandle) -> Result<String, String> {
         }
     }
 
+    load_token_from_file(app)
+}
+
+#[cfg(unix)]
+fn save_token_to_file(app: &tauri::AppHandle, token: &str) -> Result<(), String> {
+    use std::io::Write;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
     let path = get_token_path(app)?;
-    fs::read_to_string(&path).map_err(|e| format!("Token not found: {}", e))
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .mode(0o600)
+        .open(&path)
+        .map_err(|e| format!("Failed to write secure token file: {}", e))?;
+    file.write_all(token.as_bytes())
+        .map_err(|e| format!("Failed to write token: {}", e))?;
+
+    let mut perms = fs::metadata(&path)
+        .map_err(|e| format!("Failed to stat token file: {}", e))?
+        .permissions();
+    perms.set_mode(0o600);
+    fs::set_permissions(&path, perms)
+        .map_err(|e| format!("Failed to harden token file permissions: {}", e))?;
+
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn save_token_to_file(_app: &tauri::AppHandle, _token: &str) -> Result<(), String> {
+    Err("Windows Credential Manager is unavailable. Please ensure it is accessible and try signing in again.".to_string())
+}
+
+#[cfg(unix)]
+fn load_token_from_file(app: &tauri::AppHandle) -> Result<String, String> {
+    let path = get_token_path(app)?;
+    fs::read_to_string(&path).map_err(|_| "Not authenticated. Please sign in with GitHub.".to_string())
+}
+
+#[cfg(not(unix))]
+fn load_token_from_file(_app: &tauri::AppHandle) -> Result<String, String> {
+    Err("Not authenticated. Please sign in with GitHub.".to_string())
 }

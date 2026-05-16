@@ -9,6 +9,14 @@ import PageLayout from '../components/PageLayout.vue'
 const repoUrl = ref('')
 const { success, error } = useToast()
 
+const GITHUB_HTTPS_PATTERN = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+(\.git)?$/
+const GITHUB_SSH_PATTERN = /^git@github\.com:[\w.-]+\/[\w.-]+(\.git)?$/
+
+function isValidGitHubRepoUrl(url: string): boolean {
+  const trimmed = url.trim()
+  return GITHUB_HTTPS_PATTERN.test(trimmed) || GITHUB_SSH_PATTERN.test(trimmed)
+}
+
 onMounted(async () => {
   try {
     const savedRepo = await invoke<string | null>('get_setting', { key: 'repoUrl' })
@@ -19,8 +27,12 @@ onMounted(async () => {
 })
 
 async function saveConfig() {
+  if (repoUrl.value && !isValidGitHubRepoUrl(repoUrl.value)) {
+    error('Repository URL must be a GitHub HTTPS or SSH URL (e.g. git@github.com:org/repo.git)')
+    return
+  }
   try {
-    await invoke('set_setting', { key: 'repoUrl', value: repoUrl.value })
+    await invoke('set_setting', { key: 'repoUrl', value: repoUrl.value.trim() })
     success('Configuration saved successfully!')
   } catch (e: any) {
     error(typeof e === 'string' ? e : 'Failed to save configuration')

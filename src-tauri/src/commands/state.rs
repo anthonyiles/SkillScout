@@ -3,6 +3,24 @@ use crate::models::{Agent, Project};
 use rusqlite::params;
 use tauri::{command, State};
 
+fn validate_project_path(path: &str) -> Result<(), String> {
+    if path.trim().is_empty() {
+        return Err("Project path cannot be empty".to_string());
+    }
+
+    let p = std::path::Path::new(path);
+
+    if !p.is_absolute() {
+        return Err("Project path must be an absolute path".to_string());
+    }
+
+    if p.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+        return Err("Project path must not contain '..' components".to_string());
+    }
+
+    Ok(())
+}
+
 #[command]
 pub fn get_setting(state: State<'_, AppState>, key: String) -> Result<Option<String>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
@@ -118,6 +136,8 @@ pub fn get_projects(state: State<'_, AppState>) -> Result<Vec<Project>, String> 
 
 #[command]
 pub fn save_project(state: State<'_, AppState>, project: Project) -> Result<Project, String> {
+    validate_project_path(&project.path)?;
+
     let mut conn = state.db.lock().map_err(|e| { eprintln!("Database lock error: {}", e); "Database busy".to_string() })?;
     let tx = conn.transaction().map_err(|e| { eprintln!("Database transaction error: {}", e); "Database busy".to_string() })?;
     

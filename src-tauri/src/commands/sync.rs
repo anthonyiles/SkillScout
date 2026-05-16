@@ -10,8 +10,37 @@ use crate::utils::filesystem::copy_dir_all;
 use crate::db::AppState;
 use rusqlite::params;
 
+fn validate_repo_url(url: &str) -> Result<(), String> {
+    let url = url.trim();
+
+    let is_https = url.starts_with("https://github.com/") && {
+        let path = &url["https://github.com/".len()..];
+        let parts: Vec<&str> = path.splitn(2, '/').collect();
+        parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty()
+    };
+
+    let is_ssh = url.starts_with("git@github.com:") && {
+        let path = &url["git@github.com:".len()..];
+        let parts: Vec<&str> = path.splitn(2, '/').collect();
+        parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty()
+    };
+
+    if !is_https && !is_ssh {
+        return Err("Repository URL must be a GitHub HTTPS or SSH URL (e.g. https://github.com/org/repo or git@github.com:org/repo)".to_string());
+    }
+
+    let forbidden_chars = ['`', '$', ';', '&', '|', '(', ')', '<', '>', '\n', '\r', '\0'];
+    if url.chars().any(|c| forbidden_chars.contains(&c)) {
+        return Err("Repository URL contains invalid characters".to_string());
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_url: String) -> Result<usize, String> {
+    validate_repo_url(&repo_url)?;
+
     let app_data_dir = app.path().app_data_dir().map_err(|e| { eprintln!("App data dir error: {}", e); "Failed to resolve app data directory".to_string() })?;
     
     let skills = tauri::async_runtime::spawn_blocking(move || {
