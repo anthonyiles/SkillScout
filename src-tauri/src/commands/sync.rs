@@ -11,6 +11,11 @@ use crate::utils::filesystem::copy_dir_all;
 use crate::db::AppState;
 use rusqlite::params;
 
+fn canonical_repo_url(url: &str) -> String {
+    let trimmed = url.trim().trim_end_matches('/');
+    trimmed.strip_suffix(".git").unwrap_or(trimmed).to_string()
+}
+
 fn validate_repo_url(url: &str) -> Result<(), SkillScoutError> {
     let url = url.trim();
     let url_normalized = url.strip_suffix(".git").unwrap_or(url);
@@ -75,7 +80,7 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
 
             let current_url = String::from_utf8_lossy(&remote_output.stdout).trim().to_string();
 
-            if current_url != repo_url.trim() {
+            if canonical_repo_url(&current_url) != canonical_repo_url(&repo_url) {
                 fs::remove_dir_all(&repo_dir)
                     .map_err(|e| SkillScoutError::FileSystemError(format!("Failed to clear old repo: {}", e)))?;
 
@@ -204,14 +209,19 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
             .map_err(|e| SkillScoutError::DatabaseError(e.to_string()))?;
     }
 
-    for skill in skills {
+    for skill in &skills {
         tx.execute(
-            "INSERT INTO repository_items (id, name, folder, description, file_path, content, sha) 
+            "INSERT INTO repository_items (id, name, folder, description, file_path, content, sha)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-             ON CONFLICT(id) DO UPDATE SET 
+             ON CONFLICT(id) DO UPDATE SET
              name = ?2, folder = ?3, description = ?4, file_path = ?5, content = ?6, sha = ?7, last_synced = CURRENT_TIMESTAMP",
             params![skill.id, skill.name, skill.folder, skill.description, skill.file_path, skill.content, skill.sha]
         ).map_err(|e| SkillScoutError::DatabaseError(format!("Failed to save item: {}", e)))?;
+
+        tx.execute(
+            "UPDATE item_selections SET applied_sha = NULL WHERE item_id = ?1 AND applied_sha IS NOT NULL AND applied_sha != ?2",
+            params![skill.id, skill.sha]
+        ).map_err(|e| SkillScoutError::DatabaseError(format!("Failed to reconcile applied_sha: {}", e)))?;
     }
 
     tx.commit().map_err(|e| SkillScoutError::DatabaseError(format!("Failed to commit sync: {}", e)))?;

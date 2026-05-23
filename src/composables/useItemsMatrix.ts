@@ -141,6 +141,7 @@ export function useItemsMatrix(folder: ItemFolder) {
       } else {
         selectionMatrix.value[itemId].delete(projectId)
       }
+      error('Failed to save selection. Please try again.')
       console.error('Failed to persist selection change', err)
     }
   }
