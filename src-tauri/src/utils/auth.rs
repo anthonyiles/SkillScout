@@ -7,7 +7,7 @@ pub fn save_token(token: &str) -> Result<(), String> {
 
 pub fn load_token() -> Result<String, String> {
     keyring::Entry::new("skillscout", "github_token")
-        .map_err(|_| "Not authenticated. Please sign in with GitHub.".to_string())?
+        .map_err(|e| { eprintln!("Keyring access error: {}", e); "Not authenticated. Please sign in with GitHub.".to_string() })?
         .get_password()
-        .map_err(|_| "Not authenticated. Please sign in with GitHub.".to_string())
+        .map_err(|e| { eprintln!("Keyring read error: {}", e); "Not authenticated. Please sign in with GitHub.".to_string() })
 }

@@ -97,7 +97,7 @@ pub async fn check_github_auth() -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub async fn logout_github() -> Result<(), String> {
+pub fn logout_github() -> Result<(), String> {
     keyring::Entry::new("skillscout", "github_token")
         .map_err(|e| { eprintln!("Keyring error: {}", e); "Failed to access OS keyring.".to_string() })?
         .delete_credential()

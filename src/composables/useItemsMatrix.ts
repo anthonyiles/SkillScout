@@ -32,6 +32,13 @@ interface ItemSelection {
   applied_sha: string | null
 }
 
+interface ApplyTask {
+  source_file: string | null
+  target_dir: string
+  file_name: string
+  remove: boolean
+}
+
 export type ItemFolder = 'skills' | 'rules'
 
 export function useItemsMatrix(folder: ItemFolder) {
@@ -183,8 +190,8 @@ export function useItemsMatrix(folder: ItemFolder) {
             updated = true
           }
         }
-      } catch (err: any) {
-        console.error(`Failed to scan ${project.path}`, err)
+      } catch (err: unknown) {
+        console.error(`Failed to scan ${project.path}`, err instanceof Error ? err.message : String(err))
       }
     }
 
@@ -196,7 +203,7 @@ export function useItemsMatrix(folder: ItemFolder) {
   }
 
   async function applyToProjects() {
-    const tasks: any[] = []
+    const tasks: ApplyTask[] = []
     let missingConfigError = ''
 
     for (const item of items.value) {
