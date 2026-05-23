@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch, onBeforeUnmount, ref, nextTick, useId } from 'vue'
+import { watch, onBeforeUnmount, ref, nextTick } from 'vue'
 import { useFocusTrap } from '@vueuse/integrations/useFocusTrap'
 import { useEscapeKey } from '../composables/useEscapeKey'
 import BaseButton from './BaseButton.vue'
@@ -12,7 +12,7 @@ const props = defineProps<{
 
 const emit = defineEmits(['close'])
 const modalRef = ref<HTMLElement | null>(null)
-const titleId = `modal-title-${useId()}`
+const titleId = `modal-title-${Math.random().toString(36).slice(2, 8)}`
 const { activate, deactivate } = useFocusTrap(modalRef)
 
 function close() {

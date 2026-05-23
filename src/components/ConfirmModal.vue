@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch, nextTick, ref, useId } from 'vue'
+import { watch, nextTick, ref } from 'vue'
 import { useEscapeKey } from '../composables/useEscapeKey'
 import BaseButton from './BaseButton.vue'
 
@@ -15,7 +15,7 @@ const props = defineProps<{
 const emit = defineEmits(['confirm', 'cancel'])
 const modalContentRef = ref<HTMLElement | null>(null)
 const previousActiveElement = ref<HTMLElement | null>(null)
-const modalId = useId()
+const modalId = Math.random().toString(36).slice(2, 8)
 const titleId = `modal-title-${modalId}`
 const messageId = `modal-message-${modalId}`
 
