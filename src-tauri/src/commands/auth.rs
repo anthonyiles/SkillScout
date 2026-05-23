@@ -98,8 +98,14 @@ pub async fn check_github_auth() -> Result<bool, String> {
 
 #[tauri::command]
 pub fn logout_github() -> Result<(), String> {
-    keyring::Entry::new("skillscout", "github_token")
-        .map_err(|e| { eprintln!("Keyring error: {}", e); "Failed to access OS keyring.".to_string() })?
-        .delete_credential()
-        .map_err(|e| { eprintln!("Keyring delete error: {}", e); "Failed to clear keyring credential.".to_string() })
+    let entry = keyring::Entry::new("skillscout", "github_token")
+        .map_err(|e| { eprintln!("Keyring error: {}", e); "Failed to access OS keyring.".to_string() })?;
+
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => {
+            eprintln!("Keyring delete error: {}", e);
+            Err("Failed to clear keyring credential.".to_string())
+        }
+    }
 }
