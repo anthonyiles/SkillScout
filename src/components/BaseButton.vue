@@ -30,12 +30,12 @@ const variantClasses: Record<string, string> = {
 
 const sizeClasses: Record<string, string> = {
   sm: 'py-[0.35rem] px-3 text-[0.8rem]',
-  md: '',
+  md: 'py-[6px] px-3 text-[0.85rem]',
   lg: 'py-3 px-5 text-base',
 }
 
 const buttonClasses = computed(() => [
-  'inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed',
+  'inline-flex items-center justify-center gap-2 border rounded-sm cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed',
   variantClasses[props.variant] ?? variantClasses.default,
   sizeClasses[props.size] ?? '',
   props.icon ? 'p-[6px]' : '',
