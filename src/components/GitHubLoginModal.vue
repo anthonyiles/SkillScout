@@ -63,8 +63,12 @@ function stopPolling() {
   if (pollingIntervalId) { clearTimeout(pollingIntervalId); pollingIntervalId = null }
 }
 
-function openGitHub() {
-  if (verificationUri.value) openUrl(verificationUri.value)
+async function openGitHub() {
+  if (verificationUri.value) {
+    try {
+      await openUrl(verificationUri.value)
+    } catch { errorMsg.value = 'Failed to open browser.' }
+  }
 }
 
 async function copyCode() {

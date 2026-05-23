@@ -42,7 +42,7 @@ pub fn load_token(app: &tauri::AppHandle) -> Result<String, String> {
 #[cfg(unix)]
 fn save_token_to_file(app: &tauri::AppHandle, token: &str) -> Result<(), String> {
     use std::io::Write;
-    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    use std::os::unix::fs::OpenOptionsExt;
 
     let path = get_token_path(app)?;
     let mut file = fs::OpenOptions::new()
@@ -54,13 +54,6 @@ fn save_token_to_file(app: &tauri::AppHandle, token: &str) -> Result<(), String>
         .map_err(|e| format!("Failed to write secure token file: {}", e))?;
     file.write_all(token.as_bytes())
         .map_err(|e| format!("Failed to write token: {}", e))?;
-
-    let mut perms = fs::metadata(&path)
-        .map_err(|e| format!("Failed to stat token file: {}", e))?
-        .permissions();
-    perms.set_mode(0o600);
-    fs::set_permissions(&path, perms)
-        .map_err(|e| format!("Failed to harden token file permissions: {}", e))?;
 
     Ok(())
 }

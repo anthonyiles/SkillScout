@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch, nextTick, ref } from 'vue'
+import { watch, nextTick, ref, useId } from 'vue'
 import { useEscapeKey } from '../composables/useEscapeKey'
 import BaseButton from './BaseButton.vue'
 
@@ -15,6 +15,9 @@ const props = defineProps<{
 const emit = defineEmits(['confirm', 'cancel'])
 const modalContentRef = ref<HTMLElement | null>(null)
 const previousActiveElement = ref<HTMLElement | null>(null)
+const modalId = useId()
+const titleId = `modal-title-${modalId}`
+const messageId = `modal-message-${modalId}`
 
 useEscapeKey(() => props.isOpen, () => emit('cancel'))
 
@@ -39,14 +42,14 @@ watch(() => props.isOpen, (isOpen) => {
       class="w-[90%] max-w-[400px] rounded-md shadow-[0_10px_40px_rgba(0,0,0,0.5)] bg-card border border-divider flex flex-col"
       role="dialog"
       aria-modal="true"
-      :aria-labelledby="'modal-title-' + title"
-      :aria-describedby="'modal-message-' + title"
+      :aria-labelledby="titleId"
+      :aria-describedby="messageId"
       tabindex="-1"
     >
       <div class="px-6 pt-6 pb-2">
-        <h3 class="text-xl font-semibold" :id="'modal-title-' + title">{{ title }}</h3>
+        <h3 class="text-xl font-semibold" :id="titleId">{{ title }}</h3>
       </div>
-      <div class="px-6 pt-2 pb-6 text-muted" :id="'modal-message-' + title">
+      <div class="px-6 pt-2 pb-6 text-muted" :id="messageId">
         <p>{{ message }}</p>
       </div>
       <div class="flex justify-end gap-4 py-4 px-6 bg-page border-t border-divider rounded-b-md">

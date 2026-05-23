@@ -54,7 +54,7 @@ async function saveConfig() {
     <div class="bg-card/70 backdrop-blur-md border border-white/10 p-6 rounded-md mb-6">
       <h2 class="text-xl font-semibold mb-2">Repository Settings</h2>
       <p class="text-sm text-muted mb-4">Configure the private GitHub repository where skills are stored. We use your local SSH agent for authentication.</p>
-      <InputField label="SSH Clone URL" v-model="repoUrl" placeholder="git@github.com:org/repo.git" />
+      <InputField label="Clone URL (HTTPS or SSH)" v-model="repoUrl" placeholder="git@github.com:org/repo.git" />
     </div>
   </PageLayout>
 </template>

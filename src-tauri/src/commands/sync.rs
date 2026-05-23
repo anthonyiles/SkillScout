@@ -13,16 +13,19 @@ use rusqlite::params;
 
 fn validate_repo_url(url: &str) -> Result<(), SkillScoutError> {
     let url = url.trim();
+    let url_normalized = url.strip_suffix(".git").unwrap_or(url);
 
-    let is_https = url.starts_with("https://github.com/") && {
-        let path = &url["https://github.com/".len()..];
-        let parts: Vec<&str> = path.splitn(2, '/').collect();
+    let is_https = url_normalized.starts_with("https://github.com/") && {
+        let path = &url_normalized["https://github.com/".len()..];
+        let path = path.trim_end_matches('/');
+        let parts: Vec<&str> = path.splitn(3, '/').collect();
         parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty()
     };
 
-    let is_ssh = url.starts_with("git@github.com:") && {
-        let path = &url["git@github.com:".len()..];
-        let parts: Vec<&str> = path.splitn(2, '/').collect();
+    let is_ssh = url_normalized.starts_with("git@github.com:") && {
+        let path = &url_normalized["git@github.com:".len()..];
+        let path = path.trim_end_matches('/');
+        let parts: Vec<&str> = path.splitn(3, '/').collect();
         parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty()
     };
 

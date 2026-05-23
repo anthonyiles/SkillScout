@@ -96,7 +96,7 @@ export function useItemsMatrix(folder: ItemFolder) {
 
     try {
       const fetchedItems = await invoke<RepositoryItem[]>('get_repository_items', { folder })
-      if (fetchedItems?.length) {
+      if (Array.isArray(fetchedItems)) {
         items.value = fetchedItems
         await initializeMatrix()
         await scanLocal(true)
@@ -126,7 +126,8 @@ export function useItemsMatrix(folder: ItemFolder) {
 
   async function toggleSelection(itemId: string, projectId: number) {
     if (!selectionMatrix.value[itemId]) selectionMatrix.value[itemId] = new Set()
-    if (selectionMatrix.value[itemId].has(projectId)) {
+    const wasSelected = selectionMatrix.value[itemId].has(projectId)
+    if (wasSelected) {
       selectionMatrix.value[itemId].delete(projectId)
     } else {
       selectionMatrix.value[itemId].add(projectId)
@@ -134,6 +135,12 @@ export function useItemsMatrix(folder: ItemFolder) {
     try {
       await invoke('toggle_item_selection', { itemId, projectId })
     } catch (err) {
+      // Rollback optimistic change
+      if (wasSelected) {
+        selectionMatrix.value[itemId].add(projectId)
+      } else {
+        selectionMatrix.value[itemId].delete(projectId)
+      }
       console.error('Failed to persist selection change', err)
     }
   }

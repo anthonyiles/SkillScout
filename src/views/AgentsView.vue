@@ -76,6 +76,8 @@ function resetToDefaults() {
 }
 
 async function executeReset() {
+  if (saving.value) return
+  saving.value = true
   try {
     await invoke('reset_agents_to_defaults')
     await loadAgents()
@@ -83,6 +85,7 @@ async function executeReset() {
   } catch (err) {
     error('Failed to reset to defaults')
   } finally {
+    saving.value = false
     isConfirmOpen.value = false
   }
 }

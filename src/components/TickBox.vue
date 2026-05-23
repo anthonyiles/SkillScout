@@ -21,7 +21,7 @@ function onChange(event: Event) {
     <div class="relative w-4 h-4 flex-shrink-0">
       <input
         type="checkbox"
-        class="peer absolute opacity-0 w-0 h-0 m-0 p-0"
+        class="peer absolute opacity-0 w-4 h-4 m-0 p-0 cursor-pointer"
         :checked="checked"
         @change="onChange"
       />
@@ -29,6 +29,7 @@ function onChange(event: Event) {
         absolute inset-0 w-4 h-4 bg-page border border-divider rounded-[4px] transition-all box-border
         group-hover:border-accent
         peer-checked:bg-accent peer-checked:border-accent
+        peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-1 peer-focus-visible:ring-offset-page
         after:content-[''] after:absolute after:hidden
         peer-checked:after:block
         after:left-1 after:top-0 after:w-1 after:h-[9px]

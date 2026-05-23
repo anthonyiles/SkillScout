@@ -35,6 +35,11 @@ impl Serialize for SkillScoutError {
 
 impl From<rusqlite::Error> for SkillScoutError {
     fn from(err: rusqlite::Error) -> Self {
+        if let rusqlite::Error::SqliteFailure(ref e, _) = err {
+            if e.code == rusqlite::ErrorCode::DatabaseBusy {
+                return Self::DatabaseBusy;
+            }
+        }
         Self::DatabaseError(err.to_string())
     }
 }

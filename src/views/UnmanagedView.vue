@@ -316,7 +316,7 @@ async function promoteUpdate(item: ModifiedItem, project: ProjectWithLocalItems)
                 </BaseButton>
               </template>
               <template v-else-if="mergedPrs.has(`${project.path}-${item.subFolder}-${item.name}`)">
-                <BaseButton variant="secondary" size="sm" disabled class="!text-[#4ade80] !border-[rgba(74,222,128,0.3)] !bg-[rgba(74,222,128,0.1)] !opacity-100">
+                <BaseButton variant="secondary" size="sm" disabled class="text-[#4ade80]! border-[rgba(74,222,128,0.3)]! bg-[rgba(74,222,128,0.1)]! opacity-100!">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
                   Merged!
                 </BaseButton>
@@ -379,7 +379,7 @@ async function promoteUpdate(item: ModifiedItem, project: ProjectWithLocalItems)
                   </BaseButton>
                 </template>
                 <template v-else-if="mergedPrs.has(`${project.path}-${item.subFolder}-${item.name}`)">
-                  <BaseButton variant="secondary" size="sm" disabled class="!text-[#4ade80] !border-[rgba(74,222,128,0.3)] !bg-[rgba(74,222,128,0.1)] !opacity-100">
+                  <BaseButton variant="secondary" size="sm" disabled class="text-[#4ade80]! border-[rgba(74,222,128,0.3)]! bg-[rgba(74,222,128,0.1)]! opacity-100!">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
                     Merged!
                   </BaseButton>

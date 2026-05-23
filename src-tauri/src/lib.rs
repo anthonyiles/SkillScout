@@ -34,10 +34,7 @@ pub fn run() {
                     // Check if a repo is configured
                     let repo_url = {
                         let state: tauri::State<'_, db::AppState> = handle.state();
-                        let conn = match state.db.lock() {
-                            Ok(c) => c,
-                            Err(_) => continue,
-                        };
+                        let conn = state.lock_conn();
                         let mut stmt = match conn.prepare("SELECT value FROM settings WHERE key = 'repoUrl'") {
                             Ok(s) => s,
                             Err(_) => continue,
