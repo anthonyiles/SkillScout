@@ -1,6 +1,5 @@
 use crate::models::{DeviceAuthResponse, TokenResponse};
-use crate::utils::auth::{load_token, save_token, get_token_path};
-use std::fs;
+use crate::utils::auth::{load_token, save_token};
 
 const GITHUB_DEVICE_CODE_URL: &str = "https://github.com/login/device/code";
 const GITHUB_OAUTH_TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
@@ -48,7 +47,7 @@ pub async fn start_github_device_flow() -> Result<DeviceAuthResponse, String> {
 }
 
 #[tauri::command]
-pub async fn poll_github_token(app: tauri::AppHandle, device_code: String) -> Result<TokenResponse, String> {
+pub async fn poll_github_token(device_code: String) -> Result<TokenResponse, String> {
     let client_id = std::env::var("GITHUB_CLIENT_ID").unwrap_or_default();
     if client_id.is_empty() || client_id == "your_sandbox_client_id_here" {
         return Err("GitHub Client ID is missing or invalid in configuration.".to_string());
@@ -70,15 +69,15 @@ pub async fn poll_github_token(app: tauri::AppHandle, device_code: String) -> Re
     
     // Securely save the token if it was returned
     if let Some(token) = &token_res.access_token {
-        save_token(&app, token)?;
+        save_token(token)?;
     }
     
     Ok(token_res)
 }
 
 #[tauri::command]
-pub async fn check_github_auth(app: tauri::AppHandle) -> Result<bool, String> {
-    let token = match load_token(&app) {
+pub async fn check_github_auth() -> Result<bool, String> {
+    let token = match load_token() {
         Ok(t) => t,
         Err(_) => return Ok(false),
     };
@@ -98,17 +97,9 @@ pub async fn check_github_auth(app: tauri::AppHandle) -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub async fn logout_github(app: tauri::AppHandle) -> Result<(), String> {
-    if let Ok(entry) = keyring::Entry::new("skillscout", "github_token") {
-        entry
-            .delete_credential()
-            .map_err(|e| { eprintln!("Keyring delete error: {}", e); "Failed to clear keyring credential.".to_string() })?;
-    }
-
-    let path = get_token_path(&app)?;
-    if path.exists() {
-        fs::remove_file(path)
-            .map_err(|e| { eprintln!("Token file remove error: {}", e); "Failed to remove token file.".to_string() })?;
-    }
-    Ok(())
+pub async fn logout_github() -> Result<(), String> {
+    keyring::Entry::new("skillscout", "github_token")
+        .map_err(|e| { eprintln!("Keyring error: {}", e); "Failed to access OS keyring.".to_string() })?
+        .delete_credential()
+        .map_err(|e| { eprintln!("Keyring delete error: {}", e); "Failed to clear keyring credential.".to_string() })
 }

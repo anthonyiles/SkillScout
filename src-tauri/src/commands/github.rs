@@ -6,8 +6,8 @@ use crate::github::api::{
 };
 
 #[tauri::command]
-pub async fn check_pr_status(app: tauri::AppHandle, pr_url: String) -> Result<serde_json::Value, String> {
-    let token = load_token(&app)?;
+pub async fn check_pr_status(pr_url: String) -> Result<serde_json::Value, String> {
+    let token = load_token()?;
     
     let parts: Vec<&str> = pr_url.split("github.com/").collect();
     if parts.len() < 2 {
@@ -57,7 +57,6 @@ pub async fn check_pr_status(app: tauri::AppHandle, pr_url: String) -> Result<se
 
 #[tauri::command]
 pub async fn promote_item(
-    app: tauri::AppHandle,
     repo_url: String,
     item_type: String,
     item_name: String,
@@ -65,7 +64,7 @@ pub async fn promote_item(
     sub_folders: Vec<String>,
     update_mode: Option<bool>,
 ) -> Result<serde_json::Value, String> {
-    let token = load_token(&app)?;
+    let token = load_token()?;
     let (owner, repo) = parse_repo_url(&repo_url).ok_or("Invalid repository URL format.")?;
 
     let base_path = Path::new(&project_path)
