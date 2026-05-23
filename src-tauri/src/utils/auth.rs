@@ -5,9 +5,18 @@ pub fn save_token(token: &str) -> Result<(), String> {
         .map_err(|e| format!("Failed to store token in OS keyring: {}", e))
 }
 
+pub const NO_CREDENTIAL: &str = "Not authenticated. Please sign in with GitHub.";
+
 pub fn load_token() -> Result<String, String> {
-    keyring::Entry::new("skillscout", "github_token")
-        .map_err(|e| { eprintln!("Keyring access error: {}", e); "Not authenticated. Please sign in with GitHub.".to_string() })?
-        .get_password()
-        .map_err(|e| { eprintln!("Keyring read error: {}", e); "Not authenticated. Please sign in with GitHub.".to_string() })
+    let entry = keyring::Entry::new("skillscout", "github_token")
+        .map_err(|e| { eprintln!("Keyring access error: {}", e); format!("OS keyring unavailable: {}", e) })?;
+    entry.get_password()
+        .map_err(|e| {
+            eprintln!("Keyring read error: {}", e);
+            if matches!(e, keyring::Error::NoEntry) {
+                NO_CREDENTIAL.to_string()
+            } else {
+                format!("OS keyring unavailable: {}", e)
+            }
+        })
 }

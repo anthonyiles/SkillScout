@@ -1,5 +1,5 @@
 use crate::models::{DeviceAuthResponse, TokenResponse};
-use crate::utils::auth::{load_token, save_token};
+use crate::utils::auth::{load_token, save_token, NO_CREDENTIAL};
 
 const GITHUB_DEVICE_CODE_URL: &str = "https://github.com/login/device/code";
 const GITHUB_OAUTH_TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
@@ -79,7 +79,8 @@ pub async fn poll_github_token(device_code: String) -> Result<TokenResponse, Str
 pub async fn check_github_auth() -> Result<bool, String> {
     let token = match load_token() {
         Ok(t) => t,
-        Err(_) => return Ok(false),
+        Err(e) if e == NO_CREDENTIAL => return Ok(false),
+        Err(e) => return Err(e),
     };
 
     let client = reqwest::Client::builder()
