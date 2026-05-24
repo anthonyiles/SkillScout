@@ -72,10 +72,10 @@ async function loadRepositoryIndex() {
   if (agents) availableAgents.value = agents
 
   const skills = await getRepositoryItems('skills')
-  if (skills) knownSkills.value = new Map(skills.map(skill => [skill.name, { id: skill.id, sha: skill.sha }]))
+  if (skills) knownSkills.value = new Map(skills.map(skill => [`${skill.folder}:${skill.name}`, { id: skill.id, sha: skill.sha }]))
 
   const rules = await getRepositoryItems('rules')
-  if (rules) knownRules.value = new Map(rules.map(rule => [rule.name, { id: rule.id, sha: rule.sha }]))
+  if (rules) knownRules.value = new Map(rules.map(rule => [`${rule.folder}:${rule.name}`, { id: rule.id, sha: rule.sha }]))
 }
 
 function collectAgentPaths(project: Project): { skillPaths: Set<string>; rulePaths: Set<string> } {
@@ -98,7 +98,7 @@ function classifyHashes(
   const unmanaged: UnmanagedItem[] = []
   const modified: ModifiedItem[] = []
   for (const fileHash of hashes) {
-    const known = knownItems.get(fileHash.name)
+    const known = knownItems.get(`${fileHash.folder}:${fileHash.name}`)
     if (!known) {
       unmanaged.push({ name: fileHash.name, path: projectPath, type: itemType, content: fileHash.content, subFolder: fileHash.folder })
     } else if (known.sha !== fileHash.sha) {
@@ -159,7 +159,7 @@ onMounted(async () => {
     const promoted = await getPromotedItems()
     if (promoted) {
       const pmap: Record<string, PromotedItem> = {}
-      for (const item of promoted) pmap[`${item.path}-${item.name}`] = item
+      for (const item of promoted) pmap[`${item.path}-${item.subFolder ?? ''}-${item.name}`] = item
       promotedItems.value = pmap
     }
   } catch (err) { console.error('Failed to load promoted items:', err) }
@@ -215,7 +215,7 @@ async function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) 
   promotingItem.value = key
   try {
     const result = await apiPromoteItem(repoUrl, item.type, item.name, project.path, [item.subFolder])
-    const pItem: Omit<PromotedItem, 'id'> = { name: item.name, path: project.path, itemType: item.type, url: result.url, branch: result.branch }
+    const pItem: Omit<PromotedItem, 'id'> = { name: item.name, path: project.path, itemType: item.type, url: result.url, branch: result.branch, subFolder: item.subFolder }
     const saved = await addPromotedItem(pItem)
     success(`Successfully created PR!`)
     promotedItems.value[key] = saved
@@ -233,7 +233,7 @@ async function promoteUpdate(item: ModifiedItem, project: ProjectWithLocalItems)
   promotingItem.value = key
   try {
     const result = await apiPromoteItem(repoUrl, item.type, item.name, project.path, [item.subFolder], true)
-    const pItem: Omit<PromotedItem, 'id'> = { name: item.name, path: project.path, itemType: item.type, repository_item_id: item.repositoryItemId, url: result.url, branch: result.branch }
+    const pItem: Omit<PromotedItem, 'id'> = { name: item.name, path: project.path, itemType: item.type, repository_item_id: item.repositoryItemId, url: result.url, branch: result.branch, subFolder: item.subFolder }
     const saved = await addPromotedItem(pItem)
     success(`Successfully created update PR!`)
     promotedItems.value[key] = saved

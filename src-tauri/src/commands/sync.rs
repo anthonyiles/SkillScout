@@ -133,7 +133,11 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
                 Ok(e) => e,
                 Err(e) => { eprintln!("Failed to read {} folder: {}", folder_name, e); return; }
             };
-            for entry in entries.flatten() {
+            for entry in entries {
+                let entry = match entry {
+                    Ok(e) => e,
+                    Err(e) => { eprintln!("Failed to read entry in {:?}: {}", folder_path, e); continue; }
+                };
                 let path = entry.path();
                 let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else { continue };
                 if file_name.starts_with('.') {
@@ -159,19 +163,26 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
                             eprintln!("Failed to read SKILL.md at {:?}: {}", skill_md_path, e);
                             String::new()
                         });
-                    } else if let Ok(sub_entries) = fs::read_dir(&path) {
-                        for sub_entry in sub_entries.flatten() {
-                            let sub_path = sub_entry.path();
-                            if sub_path.is_file() && sub_path.extension().and_then(|ext| ext.to_str()) == Some("md") {
-                                content = fs::read_to_string(&sub_path).unwrap_or_else(|e| {
-                                    eprintln!("Failed to read {:?}: {}", sub_path, e);
-                                    String::new()
-                                });
-                                break;
-                            }
-                        }
                     } else {
-                        eprintln!("Failed to read subdirectory {:?}", path);
+                        match fs::read_dir(&path) {
+                            Ok(sub_entries) => {
+                                for sub_entry in sub_entries {
+                                    let sub_entry = match sub_entry {
+                                        Ok(e) => e,
+                                        Err(e) => { eprintln!("Failed to read entry in {:?}: {}", path, e); continue; }
+                                    };
+                                    let sub_path = sub_entry.path();
+                                    if sub_path.is_file() && sub_path.extension().and_then(|ext| ext.to_str()) == Some("md") {
+                                        content = fs::read_to_string(&sub_path).unwrap_or_else(|e| {
+                                            eprintln!("Failed to read {:?}: {}", sub_path, e);
+                                            String::new()
+                                        });
+                                        break;
+                                    }
+                                }
+                            }
+                            Err(e) => eprintln!("Failed to read subdirectory {:?}: {}", path, e),
+                        }
                     }
                 }
 
@@ -331,8 +342,12 @@ pub fn get_project_file_hashes(project_path: String, sub_folders: Vec<String>) -
         if !folder_path.exists() || !folder_path.is_dir() {
             continue;
         }
-        let Ok(entries) = fs::read_dir(folder_path) else { continue };
-        for entry in entries.flatten() {
+        let Ok(entries) = fs::read_dir(&folder_path) else { continue };
+        for entry in entries {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(e) => { eprintln!("Failed to read entry in {:?}: {}", folder_path, e); continue; }
+            };
             let path = entry.path();
             let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else { continue };
             if file_name.starts_with('.') {
@@ -350,20 +365,28 @@ pub fn get_project_file_hashes(project_path: String, sub_folders: Vec<String>) -
                         eprintln!("Failed to read SKILL.md at {:?}: {}", skill_md, e);
                         String::new()
                     })
-                } else if let Ok(sub) = fs::read_dir(&path) {
-                    sub.flatten()
-                        .find(|e| e.path().extension().and_then(|s| s.to_str()) == Some("md"))
-                        .and_then(|e| {
-                            let p = e.path();
-                            fs::read_to_string(&p).map_err(|err| {
-                                eprintln!("Failed to read {:?}: {}", p, err);
-                                err
-                            }).ok()
-                        })
-                        .unwrap_or_default()
                 } else {
-                    eprintln!("Failed to read subdirectory {:?}", path);
-                    String::new()
+                    match fs::read_dir(&path) {
+                        Ok(sub) => {
+                            let mut found = String::new();
+                            for sub_entry in sub {
+                                match sub_entry {
+                                    Ok(e) if e.path().extension().and_then(|s| s.to_str()) == Some("md") => {
+                                        let p = e.path();
+                                        found = fs::read_to_string(&p).unwrap_or_else(|err| {
+                                            eprintln!("Failed to read {:?}: {}", p, err);
+                                            String::new()
+                                        });
+                                        break;
+                                    }
+                                    Ok(_) => {}
+                                    Err(e) => eprintln!("Failed to read entry in {:?}: {}", path, e),
+                                }
+                            }
+                            found
+                        }
+                        Err(e) => { eprintln!("Failed to read subdirectory {:?}: {}", path, e); String::new() }
+                    }
                 }
             } else {
                 continue;

@@ -28,6 +28,7 @@ export interface PromotedItem {
   repository_item_id?: string | null
   url?: string | null
   branch: string
+  subFolder?: string | null
 }
 
 export interface FileHash {

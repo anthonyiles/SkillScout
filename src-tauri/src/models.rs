@@ -84,4 +84,6 @@ pub struct PromotedItem {
     pub repository_item_id: Option<String>,
     pub url: Option<String>,
     pub branch: String,
+    #[serde(rename = "subFolder")]
+    pub sub_folder: Option<String>,
 }
