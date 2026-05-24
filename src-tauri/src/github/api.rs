@@ -103,14 +103,16 @@ pub async fn create_blobs_for_item(
     let mut paths_to_process = vec![item_path.to_path_buf()];
     while let Some(current_path) = paths_to_process.pop() {
         if current_path.is_dir() {
-            if let Ok(dir_entries) = fs::read_dir(&current_path) {
-                for entry in dir_entries.flatten() {
-                    let p = entry.path();
-                    if p.file_name().and_then(|n| n.to_str()).map(|s| s.starts_with('.')).unwrap_or(false) {
-                        continue;
-                    }
-                    paths_to_process.push(p);
+            let dir_entries = fs::read_dir(&current_path)
+                .map_err(|e| format!("Failed to read directory {:?}: {}", current_path, e))?;
+            for entry in dir_entries {
+                let entry = entry
+                    .map_err(|e| format!("Failed to read entry in {:?}: {}", current_path, e))?;
+                let p = entry.path();
+                if p.file_name().and_then(|n| n.to_str()).map(|s| s.starts_with('.')).unwrap_or(false) {
+                    continue;
                 }
+                paths_to_process.push(p);
             }
         } else if current_path.is_file() {
             let content = fs::read(&current_path).map_err(|e| format!("Failed to read file {:?}: {}", current_path, e))?;
