@@ -25,7 +25,8 @@ const variantClasses: Record<string, string> = {
   primary:   'bg-accent border-accent enabled:hover:bg-accent-active enabled:hover:border-accent-active',
   secondary: 'bg-card border-divider enabled:hover:bg-card-hover enabled:hover:border-muted',
   danger:    'bg-transparent border-danger text-[#ffb3b3] enabled:hover:bg-danger enabled:hover:text-white',
-  ghost:     'bg-transparent border-transparent text-muted enabled:hover:bg-card-hover enabled:hover:text-white',
+  ghost:     'bg-transparent border-transparent text-muted enabled:hover:text-accent',
+  custom:    '',
 }
 
 const sizeClasses: Record<string, string> = {

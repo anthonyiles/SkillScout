@@ -301,9 +301,9 @@ async function promoteUpdate(item: ModifiedItem, project: ProjectWithLocalItems)
                   <div class="flex flex-col gap-[0.1rem]">
                     <div class="flex items-center gap-[0.4rem]">
                       <span class="font-mono text-[0.9rem]">{{ item.name }}</span>
-                      <button type="button" class="bg-transparent border-0 p-0 cursor-pointer text-muted flex items-center transition-colors shrink-0 hover:text-accent" @click="openPreview(item)" :aria-label="`Preview ${item.name}`">
+                      <BaseButton variant="ghost" icon class="shrink-0" @click="openPreview(item)" :aria-label="`Preview ${item.name}`">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                      </button>
+                      </BaseButton>
                     </div>
                     <span class="font-mono text-[0.7rem] text-muted opacity-70">{{ item.subFolder }}</span>
                   </div>
@@ -364,9 +364,9 @@ async function promoteUpdate(item: ModifiedItem, project: ProjectWithLocalItems)
                   <div class="flex flex-col gap-[0.1rem]">
                     <div class="flex items-center gap-[0.4rem]">
                       <span class="font-mono text-[0.9rem]">{{ item.name }}</span>
-                      <button type="button" class="bg-transparent border-0 p-0 cursor-pointer text-muted flex items-center transition-colors shrink-0 hover:text-accent" @click="openPreview(item)" :aria-label="`Preview ${item.name}`">
+                      <BaseButton variant="ghost" icon class="shrink-0" @click="openPreview(item)" :aria-label="`Preview ${item.name}`">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                      </button>
+                      </BaseButton>
                     </div>
                     <span class="font-mono text-[0.7rem] text-muted opacity-70">{{ item.subFolder }}</span>
                   </div>

@@ -74,14 +74,9 @@ function openPreview(skill: RepositoryItem) {
             <td class="py-2 px-4 border-b border-divider">
               <div class="flex items-center gap-[0.4rem]">
                 <span class="font-semibold text-base">{{ skill.name }}</span>
-                <button
-                  type="button"
-                  class="bg-transparent border-0 p-0 cursor-pointer text-muted flex items-center transition-colors shrink-0 hover:text-accent"
-                  @click="openPreview(skill)"
-                  :aria-label="`Preview ${skill.name}`"
-                >
+                <BaseButton variant="ghost" icon class="shrink-0" @click="openPreview(skill)" :aria-label="`Preview ${skill.name}`">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                </button>
+                </BaseButton>
               </div>
             </td>
             <td v-for="project in projects" :key="project.id" class="py-2 px-4 border-b border-divider text-center">
