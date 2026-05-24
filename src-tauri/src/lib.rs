@@ -1,4 +1,5 @@
 mod db;
+mod error;
 mod models;
 mod utils;
 mod github;
@@ -19,8 +20,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let conn = db::initialize_database(app.handle())
-                .expect("Failed to initialize database");
+            let conn = db::initialize_database(app.handle())?;
             app.manage(db::AppState {
                 db: Mutex::new(conn),
             });
@@ -34,10 +34,7 @@ pub fn run() {
                     // Check if a repo is configured
                     let repo_url = {
                         let state: tauri::State<'_, db::AppState> = handle.state();
-                        let conn = match state.db.lock() {
-                            Ok(c) => c,
-                            Err(_) => continue,
-                        };
+                        let conn = state.lock_conn();
                         let mut stmt = match conn.prepare("SELECT value FROM settings WHERE key = 'repoUrl'") {
                             Ok(s) => s,
                             Err(_) => continue,
