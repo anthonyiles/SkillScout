@@ -1,0 +1,28 @@
+
+# Rust: No unwrap/expect in Command Handlers
+
+Never call `.unwrap()` or `.expect()` in any Tauri command handler or code reachable from one. A panic in a command handler surfaces as an opaque crash to the frontend rather than a meaningful error toast.
+
+Use `?` with the crate's typed error type (`SkillScoutError`), or `map_err` to convert foreign errors.
+
+**Wrong:**
+```rust
+let conn = state.db.lock().unwrap();
+let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+```
+
+**Right:**
+```rust
+let conn = state.lock_conn()?;
+let timestamp = SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .unwrap_or_default()
+    .as_secs();
+```
+
+`.unwrap()` is acceptable in:
+- `#[cfg(test)]` test code
+- `main()` / app setup where a panic is the intended failure mode
+- Cases where the type system guarantees the value (e.g. `"literal".parse::<i32>().unwrap()`)
+
+Everywhere else: propagate with `?` or convert to `SkillScoutError`.
