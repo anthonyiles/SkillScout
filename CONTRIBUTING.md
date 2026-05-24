@@ -65,7 +65,7 @@ Run `npm run tauri dev` and manually verify the affected feature works end-to-en
 
 ### 5. Open the pull request
 
-- Target the `main` branch.
+- Target the `master` branch.
 - Write a clear title and description explaining _what_ changed and _why_.
 - Reference any related issues (e.g. `Closes #42`).
 

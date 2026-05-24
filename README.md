@@ -24,7 +24,7 @@ SkillScout connects to a GitHub repository that acts as your team's central libr
 
 ## Download
 
-Pre-built installers for Windows, macOS, and Linux are available on the [Releases](../../releases) page. Download the appropriate file for your platform and run the installer — no build step required.
+Pre-built installers for Windows, macOS, and Linux are available on the [Releases](https://github.com/anthonyiles/SkillScout/releases) page. Download the appropriate file for your platform and run the installer — no build step required.
 
 ---
 
@@ -100,7 +100,7 @@ This starts the Vite dev server and the Tauri shell together.
 
 SkillScout syncs from a GitHub repository with the following directory structure:
 
-```
+```text
 your-skills-repo/
 ├── skills/
 │   ├── my-skill/          # A skill is a directory
@@ -133,7 +133,7 @@ Once you have a repository set up, paste its URL into **Settings** inside SkillS
 
 ## Project Structure
 
-```
+```text
 skillscout/
 ├── src/                   # Vue 3 frontend
 │   ├── views/             # One component per route
