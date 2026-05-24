@@ -6,48 +6,20 @@ defineProps<{
 </script>
 
 <template>
-  <div class="view-container">
-    <div class="header" :class="{ 'has-actions': $slots.actions }">
-      <div class="title-section">
-        <h1 class="text-h1">{{ title }}</h1>
-        <p v-if="description" class="text-secondary mt-1">{{ description }}</p>
+  <div class="p-6 w-full h-screen overflow-y-auto">
+    <div
+      class="mb-6"
+      :class="{ 'flex justify-between items-center': $slots.actions }"
+    >
+      <div>
+        <h1 class="text-[1.75rem] font-bold mb-3">{{ title }}</h1>
+        <p v-if="description" class="text-muted mt-1">{{ description }}</p>
       </div>
-      <div v-if="$slots.actions" class="actions">
+      <div v-if="$slots.actions" class="flex gap-4 items-center">
         <slot name="actions"></slot>
       </div>
     </div>
-    
-    <div class="content">
-      <slot></slot>
-    </div>
+
+    <slot></slot>
   </div>
 </template>
-
-<style scoped>
-.view-container {
-  padding: 1.5rem;
-  width: 100%;
-  height: 100vh;
-  overflow-y: auto;
-}
-
-.header {
-  margin-bottom: 1.5rem;
-}
-
-.header.has-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.actions {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-.mt-1 {
-  margin-top: 0.25rem;
-}
-</style>

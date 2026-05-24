@@ -7,76 +7,26 @@ defineProps<{
 </script>
 
 <template>
-  <div class="card-item" :class="{ 'glass': glass }">
-    <div v-if="title || $slots.title || $slots.actions" class="card-header">
-      <div class="title-group">
+  <div
+    class="p-5 rounded-md border mb-4"
+    :class="glass
+      ? 'bg-card/70 backdrop-blur-md border-white/10'
+      : 'bg-card-hover border-divider'"
+  >
+    <div v-if="title || $slots.title || $slots.actions" class="flex justify-between items-center mb-4 pb-3 border-b border-divider">
+      <div class="flex items-center gap-3">
         <slot name="title">
-          <h4 v-if="title">{{ title }}</h4>
+          <h4 v-if="title" class="m-0 font-semibold text-accent">{{ title }}</h4>
         </slot>
-        <span v-if="subtitle" class="subtitle">{{ subtitle }}</span>
+        <span v-if="subtitle" class="bg-card-hover text-muted text-xs px-2 py-1 rounded-full">{{ subtitle }}</span>
       </div>
-      <div v-if="$slots.actions" class="card-actions">
+      <div v-if="$slots.actions" class="flex gap-2">
         <slot name="actions"></slot>
       </div>
     </div>
-    
-    <div class="card-body">
+
+    <div class="w-full">
       <slot></slot>
     </div>
   </div>
 </template>
-
-<style scoped>
-.card-item {
-  background: var(--bg-surface-hover);
-  padding: 1.25rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
-  margin-bottom: 1rem;
-}
-
-.card-item.glass {
-  background: rgba(30, 30, 30, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.title-group {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.card-header h4 {
-  margin: 0;
-  font-weight: 600;
-  color: var(--accent-primary);
-}
-
-.subtitle {
-  background: var(--bg-surface-hover);
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-full);
-}
-
-.card-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.card-body {
-  width: 100%;
-}
-</style>

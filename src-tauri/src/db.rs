@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Result};
+use rusqlite::Connection;
 use std::sync::Mutex;
 use tauri::AppHandle;
 use tauri::Manager;
@@ -7,17 +7,29 @@ pub struct AppState {
     pub db: Mutex<Connection>,
 }
 
-pub fn initialize_database(app_handle: &AppHandle) -> Result<Connection> {
-    let app_dir = app_handle.path().app_data_dir().expect("failed to get app data dir");
-    std::fs::create_dir_all(&app_dir).expect("failed to create app data dir");
-    
+impl AppState {
+    pub fn lock_conn(&self) -> std::sync::MutexGuard<'_, Connection> {
+        self.db.lock().unwrap_or_else(|poisoned| {
+            eprintln!("Recovering database connection after a previous panic");
+            poisoned.into_inner()
+        })
+    }
+}
+
+pub fn initialize_database(app_handle: &AppHandle) -> Result<Connection, Box<dyn std::error::Error>> {
+    let app_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::NotFound, "Failed to resolve app data directory"))?;
+
+    std::fs::create_dir_all(&app_dir)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to create app data directory: {}", e)))?;
+
     let db_path = app_dir.join("app_state.db");
     let conn = Connection::open(&db_path)?;
 
-    // Enable foreign keys
     conn.execute("PRAGMA foreign_keys = ON;", [])?;
 
-    // Create tables
     conn.execute_batch(
         "
         CREATE TABLE IF NOT EXISTS settings (
@@ -79,20 +91,19 @@ pub fn initialize_database(app_handle: &AppHandle) -> Result<Connection> {
         "
     )?;
 
-    // Seed default agents if first time
-    let is_init: Result<String, _> = conn.query_row(
-        "SELECT value FROM settings WHERE key = 'initialized_defaults'", 
-        [], 
-        |row| row.get(0)
+    let is_first_run: rusqlite::Result<String> = conn.query_row(
+        "SELECT value FROM settings WHERE key = 'initialized_defaults'",
+        [],
+        |row| row.get(0),
     );
 
-    if is_init.is_err() {
+    if is_first_run.is_err() {
         conn.execute_batch("
-            INSERT OR IGNORE INTO agents (id, name, skills_path, rules_path) VALUES 
+            INSERT OR IGNORE INTO agents (id, name, skills_path, rules_path) VALUES
                 ('cursor', 'Cursor', '.cursor/skills', '.cursor/rules'),
                 ('jetbrains', 'JetBrains AI', '.agents/skills', '.agents/rules'),
                 ('claude', 'Claude Code', '.claude/skills', '.claude/rules');
-                
+
             INSERT OR IGNORE INTO settings (key, value) VALUES ('initialized_defaults', 'true');
         ")?;
     }
