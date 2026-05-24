@@ -32,7 +32,7 @@ function onChange(event: Event) {
         peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-1 peer-focus-visible:ring-offset-page
         after:content-[''] after:absolute after:hidden
         peer-checked:after:block
-        after:left-1 after:top-0 after:w-1 after:h-[9px]
+        after:left-1 after:top-0.4 after:w-1 after:h-[10px]
         after:border-solid after:border-white after:[border-width:0_2px_2px_0] after:rotate-45
       "></span>
     </div>
