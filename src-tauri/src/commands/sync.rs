@@ -126,60 +126,80 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
 
         let mut read_folder = |folder_name: &str| {
             let folder_path = repo_dir.join(folder_name);
-            if folder_path.exists() && folder_path.is_dir() {
-                if let Ok(entries) = fs::read_dir(folder_path) {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                            // skip hidden files
-                            if file_name.starts_with('.') {
-                                continue;
-                            }
-                            
-                            let desc = if path.is_dir() {
-                                format!("Directory from {} folder", folder_name)
-                            } else {
-                                format!("File from {} folder", folder_name)
-                            };
-                            
-                            let mut content = String::new();
-                            if path.is_file() {
-                                content = fs::read_to_string(&path).unwrap_or_default();
-                            } else if path.is_dir() {
-                                let skill_md_path = path.join("SKILL.md");
-                                if skill_md_path.exists() {
-                                    content = fs::read_to_string(&skill_md_path).unwrap_or_default();
-                                } else {
-                                    // Try finding any .md file
-                                    if let Ok(sub_entries) = fs::read_dir(&path) {
-                                        for sub_entry in sub_entries.flatten() {
-                                            let sub_path = sub_entry.path();
-                                            if sub_path.is_file() && sub_path.extension().and_then(|ext| ext.to_str()) == Some("md") {
-                                                content = fs::read_to_string(&sub_path).unwrap_or_default();
-                                                break;
-                                            }
-                                        }
+            if !folder_path.exists() || !folder_path.is_dir() {
+                return;
+            }
+            let entries = match fs::read_dir(&folder_path) {
+                Ok(e) => e,
+                Err(e) => { eprintln!("Failed to read {} folder: {}", folder_name, e); return; }
+            };
+            for entry in entries {
+                let entry = match entry {
+                    Ok(e) => e,
+                    Err(e) => { eprintln!("Failed to read entry in {:?}: {}", folder_path, e); continue; }
+                };
+                let path = entry.path();
+                let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else { continue };
+                if file_name.starts_with('.') {
+                    continue;
+                }
+
+                let desc = if path.is_dir() {
+                    format!("Directory from {} folder", folder_name)
+                } else {
+                    format!("File from {} folder", folder_name)
+                };
+
+                let mut content = String::new();
+                if path.is_file() {
+                    content = fs::read_to_string(&path).unwrap_or_else(|e| {
+                        eprintln!("Failed to read file {:?}: {}", path, e);
+                        String::new()
+                    });
+                } else if path.is_dir() {
+                    let skill_md_path = path.join("SKILL.md");
+                    if skill_md_path.exists() {
+                        content = fs::read_to_string(&skill_md_path).unwrap_or_else(|e| {
+                            eprintln!("Failed to read SKILL.md at {:?}: {}", skill_md_path, e);
+                            String::new()
+                        });
+                    } else {
+                        match fs::read_dir(&path) {
+                            Ok(sub_entries) => {
+                                for sub_entry in sub_entries {
+                                    let sub_entry = match sub_entry {
+                                        Ok(e) => e,
+                                        Err(e) => { eprintln!("Failed to read entry in {:?}: {}", path, e); continue; }
+                                    };
+                                    let sub_path = sub_entry.path();
+                                    if sub_path.is_file() && sub_path.extension().and_then(|ext| ext.to_str()) == Some("md") {
+                                        content = fs::read_to_string(&sub_path).unwrap_or_else(|e| {
+                                            eprintln!("Failed to read {:?}: {}", sub_path, e);
+                                            String::new()
+                                        });
+                                        break;
                                     }
                                 }
                             }
-                            
-                            let mut hasher = Sha256::new();
-                            hasher.update(&content);
-                            let sha = hex::encode(hasher.finalize());
-
-                            skills.push(RepositoryItem {
-                                id: format!("{}-{}", folder_name, file_name),
-                                name: file_name.to_string(),
-                                folder: folder_name.to_string(),
-                                description: Some(desc),
-                                file_path: path.to_string_lossy().to_string(),
-                                content,
-                                sha,
-                                last_synced: None, // SQLite handles DEFAULT CURRENT_TIMESTAMP on insert
-                            });
+                            Err(e) => eprintln!("Failed to read subdirectory {:?}: {}", path, e),
                         }
                     }
                 }
+
+                let mut hasher = Sha256::new();
+                hasher.update(&content);
+                let sha = hex::encode(hasher.finalize());
+
+                skills.push(RepositoryItem {
+                    id: format!("{}-{}", folder_name, file_name),
+                    name: file_name.to_string(),
+                    folder: folder_name.to_string(),
+                    description: Some(desc),
+                    file_path: path.to_string_lossy().to_string(),
+                    content,
+                    sha,
+                    last_synced: None,
+                });
             }
         };
         
@@ -322,26 +342,51 @@ pub fn get_project_file_hashes(project_path: String, sub_folders: Vec<String>) -
         if !folder_path.exists() || !folder_path.is_dir() {
             continue;
         }
-        let Ok(entries) = fs::read_dir(folder_path) else { continue };
-        for entry in entries.flatten() {
+        let Ok(entries) = fs::read_dir(&folder_path) else { continue };
+        for entry in entries {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(e) => { eprintln!("Failed to read entry in {:?}: {}", folder_path, e); continue; }
+            };
             let path = entry.path();
             let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else { continue };
             if file_name.starts_with('.') {
                 continue;
             }
             let content = if path.is_file() {
-                fs::read_to_string(&path).unwrap_or_default()
+                fs::read_to_string(&path).unwrap_or_else(|e| {
+                    eprintln!("Failed to read {:?}: {}", path, e);
+                    String::new()
+                })
             } else if path.is_dir() {
                 let skill_md = path.join("SKILL.md");
                 if skill_md.exists() {
-                    fs::read_to_string(&skill_md).unwrap_or_default()
-                } else if let Ok(sub) = fs::read_dir(&path) {
-                    sub.flatten()
-                        .find(|e| e.path().extension().and_then(|s| s.to_str()) == Some("md"))
-                        .and_then(|e| fs::read_to_string(e.path()).ok())
-                        .unwrap_or_default()
+                    fs::read_to_string(&skill_md).unwrap_or_else(|e| {
+                        eprintln!("Failed to read SKILL.md at {:?}: {}", skill_md, e);
+                        String::new()
+                    })
                 } else {
-                    String::new()
+                    match fs::read_dir(&path) {
+                        Ok(sub) => {
+                            let mut found = String::new();
+                            for sub_entry in sub {
+                                match sub_entry {
+                                    Ok(e) if e.path().extension().and_then(|s| s.to_str()) == Some("md") => {
+                                        let p = e.path();
+                                        found = fs::read_to_string(&p).unwrap_or_else(|err| {
+                                            eprintln!("Failed to read {:?}: {}", p, err);
+                                            String::new()
+                                        });
+                                        break;
+                                    }
+                                    Ok(_) => {}
+                                    Err(e) => eprintln!("Failed to read entry in {:?}: {}", path, e),
+                                }
+                            }
+                            found
+                        }
+                        Err(e) => { eprintln!("Failed to read subdirectory {:?}: {}", path, e); String::new() }
+                    }
                 }
             } else {
                 continue;
@@ -371,15 +416,23 @@ pub fn get_project_files(project_path: String, sub_folders: Vec<String>) -> Vec<
         }
         let folder_path = base_path.join(&folder);
         if folder_path.exists() && folder_path.is_dir() {
-            if let Ok(entries) = fs::read_dir(folder_path) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                        if !file_name.starts_with('.') {
-                            files.push(file_name.to_string());
+            match fs::read_dir(&folder_path) {
+                Ok(entries) => {
+                    for entry_res in entries {
+                        match entry_res {
+                            Ok(entry) => {
+                                let path = entry.path();
+                                if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                                    if !file_name.starts_with('.') {
+                                        files.push(file_name.to_string());
+                                    }
+                                }
+                            }
+                            Err(e) => eprintln!("Failed to read entry in {:?}: {}", folder_path, e),
                         }
                     }
                 }
+                Err(e) => eprintln!("Failed to read directory {:?}: {}", folder_path, e),
             }
         }
     }

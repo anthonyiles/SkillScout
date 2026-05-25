@@ -1,27 +1,30 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useToast } from '../composables/useToast'
 import { formatError } from '../utils/formatError'
+import {
+  getAgents,
+  getProjects,
+  getRepositoryItems,
+  getProjectFileHashes,
+  getPromotedItems,
+  addPromotedItem,
+  removePromotedItem,
+  checkPrStatus,
+  syncRepo,
+  promoteItem as apiPromoteItem,
+  getSetting,
+  type Project,
+  type PromotedItem,
+  type FileHash,
+} from '../api'
+import type { Agent } from '../types'
 import BaseButton from '../components/BaseButton.vue'
 import PageLayout from '../components/PageLayout.vue'
 import CardItem from '../components/CardItem.vue'
 import EmptyState from '../components/EmptyState.vue'
 import ContentModal from '../components/ContentModal.vue'
-
-interface Project {
-  id: number
-  path: string
-  agentIds: string[]
-}
-
-interface Agent {
-  id: string
-  name: string
-  skillsPath: string
-  rulesPath: string
-}
 
 interface UnmanagedItem {
   name: string
@@ -40,26 +43,9 @@ interface ModifiedItem {
   content: string
 }
 
-interface FileHash {
-  name: string
-  sha: string
-  folder: string
-  content: string
-}
-
 interface ProjectWithLocalItems extends Project {
   unmanaged: UnmanagedItem[]
   modified: ModifiedItem[]
-}
-
-interface PromotedItem {
-  id?: number
-  name: string
-  path: string
-  itemType: string
-  repository_item_id?: string
-  url: string
-  branch: string
 }
 
 const projects = ref<ProjectWithLocalItems[]>([])
@@ -82,14 +68,14 @@ function getProjectName(path: string) {
 }
 
 async function loadRepositoryIndex() {
-  const agents = await invoke<Agent[]>('get_agents')
+  const agents = await getAgents()
   if (agents) availableAgents.value = agents
 
-  const skills = await invoke<any[]>('get_repository_items', { folder: 'skills' })
-  if (skills) knownSkills.value = new Map(skills.map((skill: any) => [skill.name, { id: skill.id, sha: skill.sha }]))
+  const skills = await getRepositoryItems('skills')
+  if (skills) knownSkills.value = new Map(skills.map(skill => [`${skill.folder}:${skill.name}`, { id: skill.id, sha: skill.sha }]))
 
-  const rules = await invoke<any[]>('get_repository_items', { folder: 'rules' })
-  if (rules) knownRules.value = new Map(rules.map((rule: any) => [rule.name, { id: rule.id, sha: rule.sha }]))
+  const rules = await getRepositoryItems('rules')
+  if (rules) knownRules.value = new Map(rules.map(rule => [`${rule.folder}:${rule.name}`, { id: rule.id, sha: rule.sha }]))
 }
 
 function collectAgentPaths(project: Project): { skillPaths: Set<string>; rulePaths: Set<string> } {
@@ -112,7 +98,7 @@ function classifyHashes(
   const unmanaged: UnmanagedItem[] = []
   const modified: ModifiedItem[] = []
   for (const fileHash of hashes) {
-    const known = knownItems.get(fileHash.name)
+    const known = knownItems.get(`${fileHash.folder}:${fileHash.name}`)
     if (!known) {
       unmanaged.push({ name: fileHash.name, path: projectPath, type: itemType, content: fileHash.content, subFolder: fileHash.folder })
     } else if (known.sha !== fileHash.sha) {
@@ -133,7 +119,7 @@ async function enrichProjectWithLocalItems(project: Project): Promise<ProjectWit
 
   if (skillPaths.size > 0) {
     try {
-      const hashes: FileHash[] = await invoke('get_project_file_hashes', { projectPath: project.path, subFolders: Array.from(skillPaths) })
+      const hashes = await getProjectFileHashes(project.path, Array.from(skillPaths))
       const classified = classifyHashes(hashes, knownSkills.value, 'skill', project.path)
       unmanaged.push(...classified.unmanaged)
       modified.push(...classified.modified)
@@ -142,7 +128,7 @@ async function enrichProjectWithLocalItems(project: Project): Promise<ProjectWit
 
   if (rulePaths.size > 0) {
     try {
-      const hashes: FileHash[] = await invoke('get_project_file_hashes', { projectPath: project.path, subFolders: Array.from(rulePaths) })
+      const hashes = await getProjectFileHashes(project.path, Array.from(rulePaths))
       const classified = classifyHashes(hashes, knownRules.value, 'rule', project.path)
       unmanaged.push(...classified.unmanaged)
       modified.push(...classified.modified)
@@ -156,7 +142,7 @@ async function scanLocal() {
   scanning.value = true
   try {
     await loadRepositoryIndex()
-    const rawProjects = await invoke<Project[]>('get_projects')
+    const rawProjects = await getProjects()
     if (rawProjects) {
       projects.value = await Promise.all(rawProjects.map(enrichProjectWithLocalItems))
     }
@@ -170,10 +156,10 @@ async function scanLocal() {
 
 onMounted(async () => {
   try {
-    const promoted = await invoke<PromotedItem[]>('get_promoted_items')
+    const promoted = await getPromotedItems()
     if (promoted) {
       const pmap: Record<string, PromotedItem> = {}
-      for (const item of promoted) pmap[`${item.path}-${item.name}`] = item
+      for (const item of promoted) pmap[`${item.path}-${item.subFolder ?? ''}-${item.name}`] = item
       promotedItems.value = pmap
     }
   } catch (err) { console.error('Failed to load promoted items:', err) }
@@ -185,9 +171,9 @@ onMounted(async () => {
     const key = `${item.path}-${item.name}`
     checkingPrs.value.add(key)
     try {
-      const res = await invoke<any>('check_pr_status', { prUrl: item.url })
+      const res = await checkPrStatus(item.url ?? '')
       if (res.state !== 'open') {
-        if (item.id) await invoke('remove_promoted_item', { id: item.id })
+        if (item.id) await removePromotedItem(item.id)
         delete promotedItems.value[key]
         if (res.merged) { mergedPrs.value.add(key); syncNeeded = true }
       }
@@ -199,10 +185,10 @@ onMounted(async () => {
   }))
 
   if (syncNeeded) {
-    const repoUrl = await invoke<string | null>('get_setting', { key: 'repoUrl' })
+    const repoUrl = await getSetting('repoUrl')
     if (repoUrl) {
       try {
-        await invoke('sync_repo', { repoUrl })
+        await syncRepo(repoUrl)
         await scanLocal()
         success('Background sync complete. Managed items updated.')
       } catch (err) { console.error('Failed background sync:', err) }
@@ -223,14 +209,14 @@ function openPreview(item: { name: string; content: string }) {
 }
 
 async function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) {
-  const repoUrl = await invoke<string | null>('get_setting', { key: 'repoUrl' })
+  const repoUrl = await getSetting('repoUrl')
   if (!repoUrl) { error('Please configure a repository URL in Settings first.'); return }
   const key = `${project.path}-${item.subFolder}-${item.name}`
   promotingItem.value = key
   try {
-    const result = await invoke<{ url: string; branch: string }>('promote_item', { repoUrl, itemType: item.type, itemName: item.name, projectPath: project.path, subFolders: [item.subFolder] })
-    const pItem: PromotedItem = { name: item.name, path: project.path, itemType: item.type, url: result.url, branch: result.branch }
-    const saved = await invoke<PromotedItem>('add_promoted_item', { item: pItem })
+    const result = await apiPromoteItem(repoUrl, item.type, item.name, project.path, [item.subFolder])
+    const pItem: Omit<PromotedItem, 'id'> = { name: item.name, path: project.path, itemType: item.type, url: result.url, branch: result.branch, subFolder: item.subFolder }
+    const saved = await addPromotedItem(pItem)
     success(`Successfully created PR!`)
     promotedItems.value[key] = saved
   } catch (err: unknown) {
@@ -241,14 +227,14 @@ async function promoteItem(item: UnmanagedItem, project: ProjectWithLocalItems) 
 }
 
 async function promoteUpdate(item: ModifiedItem, project: ProjectWithLocalItems) {
-  const repoUrl = await invoke<string | null>('get_setting', { key: 'repoUrl' })
+  const repoUrl = await getSetting('repoUrl')
   if (!repoUrl) { error('Please configure a repository URL in Settings first.'); return }
   const key = `${project.path}-${item.subFolder}-${item.name}`
   promotingItem.value = key
   try {
-    const result = await invoke<{ url: string; branch: string }>('promote_item', { repoUrl, itemType: item.type, itemName: item.name, projectPath: project.path, subFolders: [item.subFolder], updateMode: true })
-    const pItem: PromotedItem = { name: item.name, path: project.path, itemType: item.type, repository_item_id: item.repositoryItemId, url: result.url, branch: result.branch }
-    const saved = await invoke<PromotedItem>('add_promoted_item', { item: pItem })
+    const result = await apiPromoteItem(repoUrl, item.type, item.name, project.path, [item.subFolder], true)
+    const pItem: Omit<PromotedItem, 'id'> = { name: item.name, path: project.path, itemType: item.type, repository_item_id: item.repositoryItemId, url: result.url, branch: result.branch, subFolder: item.subFolder }
+    const saved = await addPromotedItem(pItem)
     success(`Successfully created update PR!`)
     promotedItems.value[key] = saved
   } catch (err: unknown) {
@@ -322,7 +308,7 @@ async function promoteUpdate(item: ModifiedItem, project: ProjectWithLocalItems)
                 </BaseButton>
               </template>
               <template v-else-if="promotedItems[`${project.path}-${item.subFolder}-${item.name}`]">
-                <BaseButton variant="primary" size="sm" @click="openUrl(promotedItems[`${project.path}-${item.subFolder}-${item.name}`].url).catch(() => error('Failed to open PR URL'))">
+                <BaseButton variant="primary" size="sm" @click="openUrl(promotedItems[`${project.path}-${item.subFolder}-${item.name}`].url ?? '').catch(() => error('Failed to open PR URL'))">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                   View PR
                 </BaseButton>
@@ -385,7 +371,7 @@ async function promoteUpdate(item: ModifiedItem, project: ProjectWithLocalItems)
                   </BaseButton>
                 </template>
                 <template v-else-if="promotedItems[`${project.path}-${item.subFolder}-${item.name}`]">
-                  <BaseButton variant="primary" size="sm" @click="openUrl(promotedItems[`${project.path}-${item.subFolder}-${item.name}`].url).catch(() => error('Failed to open PR URL'))">
+                  <BaseButton variant="primary" size="sm" @click="openUrl(promotedItems[`${project.path}-${item.subFolder}-${item.name}`].url ?? '').catch(() => error('Failed to open PR URL'))">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                     View PR
                   </BaseButton>

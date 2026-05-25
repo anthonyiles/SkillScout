@@ -88,7 +88,7 @@ pub fn update_applied_sha(state: State<'_, AppState>, item_id: String, project_i
 #[command]
 pub fn get_promoted_items(state: State<'_, AppState>) -> Result<Vec<PromotedItem>, String> {
     let conn = state.lock_conn();
-    let mut stmt = conn.prepare("SELECT id, name, path, item_type, repository_item_id, url, branch FROM promoted_items")
+    let mut stmt = conn.prepare("SELECT id, name, path, item_type, repository_item_id, url, branch, sub_folder FROM promoted_items")
         .map_err(|e| { eprintln!("Failed to prepare promoted items query: {}", e); "Failed to fetch promoted items".to_string() })?;
 
     let iter = stmt.query_map([], |row| {
@@ -100,6 +100,7 @@ pub fn get_promoted_items(state: State<'_, AppState>) -> Result<Vec<PromotedItem
             repository_item_id: row.get(4)?,
             url: row.get(5)?,
             branch: row.get(6)?,
+            sub_folder: row.get(7)?,
         })
     }).map_err(|e| { eprintln!("Failed to query promoted items: {}", e); "Failed to fetch promoted items".to_string() })?;
 
@@ -112,8 +113,8 @@ pub fn get_promoted_items(state: State<'_, AppState>) -> Result<Vec<PromotedItem
 pub fn add_promoted_item(state: State<'_, AppState>, item: PromotedItem) -> Result<PromotedItem, String> {
     let conn = state.lock_conn();
     conn.execute(
-        "INSERT INTO promoted_items (name, path, item_type, repository_item_id, url, branch) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![item.name, item.path, item.item_type, item.repository_item_id, item.url, item.branch],
+        "INSERT INTO promoted_items (name, path, item_type, repository_item_id, url, branch, sub_folder) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![item.name, item.path, item.item_type, item.repository_item_id, item.url, item.branch, item.sub_folder],
     ).map_err(|e| { eprintln!("Failed to insert promoted item: {}", e); "Failed to save promoted item".to_string() })?;
 
     let mut saved = item;
