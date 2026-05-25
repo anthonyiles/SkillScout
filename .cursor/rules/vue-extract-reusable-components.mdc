@@ -1,0 +1,42 @@
+---
+description: Extract repeated UI patterns into shared components rather than duplicating markup or logic
+globs: src/**/*.{vue,ts}
+alwaysApply: false
+---
+
+# Vue: Extract Reusable Components
+
+When the same UI pattern, markup structure, or behaviour appears in more than one place, extract it into a shared component in `src/components/` rather than duplicating it. Duplication means bug fixes and style changes must be applied in multiple places and often drift out of sync.
+
+**Signals that extraction is warranted:**
+- The same block of template markup appears in two or more views/components
+- The same combination of props, state, and event handlers is set up repeatedly
+- A raw HTML element is used with the same set of classes or attributes in multiple places, where a shared component already exists that wraps that element (e.g. use `<BaseButton>` instead of `<button>`, use `<InputField>` instead of `<input>`)
+- The same `try/catch` + toast + loading-flag pattern is repeated across multiple handlers
+
+**When extracting a component:**
+- Place it in `src/components/` with a descriptive PascalCase name
+- Accept data via props and emit events for actions — do not couple it to a specific view's state
+- Prefer a single-responsibility component over a large multi-purpose one
+
+**Wrong — duplicating a loading button pattern across views:**
+```html
+<!-- In SkillsView.vue -->
+<button :disabled="loading" @click="sync">
+  <span v-if="loading">Syncing…</span>
+  <span v-else>Sync</span>
+</button>
+
+<!-- In RulesView.vue — identical markup -->
+<button :disabled="loading" @click="sync">
+  <span v-if="loading">Syncing…</span>
+  <span v-else>Sync</span>
+</button>
+```
+
+**Right — use the existing BaseButton with its loading prop:**
+```html
+<BaseButton :loading="loading" @click="sync">Sync</BaseButton>
+```
+
+Before writing new template markup, check `src/components/` for an existing component that covers the use case.

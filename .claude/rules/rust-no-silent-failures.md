@@ -1,0 +1,36 @@
+
+# Rust: No Silent Failures
+
+Never use `if let Ok(...)` when an error should stop execution or be surfaced to the caller. Silent `if let Ok` is only appropriate when skipping a failed item is the deliberate design (e.g. best-effort iteration) — and even then, log the error with context.
+
+**Wrong — silently drops files from output:**
+```rust
+if let Ok(dir_entries) = fs::read_dir(&path) {
+    for entry in dir_entries.flatten() {
+        paths.push(entry.path());
+    }
+}
+```
+
+**Right — fail fast:**
+```rust
+let dir_entries = fs::read_dir(&path)
+    .map_err(|e| format!("Failed to read directory {:?}: {}", path, e))?;
+for entry in dir_entries {
+    let entry = entry.map_err(|e| format!("Failed to read entry in {:?}: {}", path, e))?;
+    paths.push(entry.path());
+}
+```
+
+**Right — best-effort with logging:**
+```rust
+match fs::read_to_string(&path) {
+    Ok(content) => content,
+    Err(e) => {
+        log::warn!("Failed to read {:?}: {}", path, e);
+        String::new()
+    }
+}
+```
+
+Apply this rule at every filesystem, subprocess, and I/O boundary in `src-tauri/`.
