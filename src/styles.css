@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  /* Surfaces */
+  --color-page: #121212;
+  --color-card: #1e1e1e;
+  --color-card-hover: #2a2a2a;
+
+  /* Brand */
+  --color-accent: #8b5cf6;
+  --color-accent-active: #7c3aed;
+  --color-danger: #ef4444;
+  --color-success: #10b981;
+
+  /* UI */
+  --color-divider: #333333;
+  --color-muted: #a0a0a0;
+
+  /* Typography */
+  --font-sans: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+
+  /* Border radius — overrides Tailwind defaults to match app scale */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 24px;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-page);
+    color: #ffffff;
+  }
+}
