@@ -21,6 +21,15 @@
       "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';"
     }
   },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "REPLACE_WITH_CLOUDFLARE_WORKER_URL"
+      ],
+      "dialog": false,
+      "pubkey": "REPLACE_WITH_OUTPUT_OF: npx tauri signer generate -w ~/.tauri/skillscout.key"
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

@@ -18,6 +18,8 @@ pub fn run() {
     dotenvy::dotenv().ok(); // Load environment variables from .env
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let conn = db::initialize_database(app.handle())?;
