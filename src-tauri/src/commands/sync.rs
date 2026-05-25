@@ -281,7 +281,7 @@ pub async fn apply_skills(tasks: Vec<SyncTask>) -> Result<usize, String> {
         let mut count = 0;
         for task in tasks {
             if !is_safe_filename(&task.file_name) {
-                continue;
+                return Err(SkillScoutError::PathTraversalAttempt.to_string());
             }
             let target_dir = Path::new(&task.target_dir);
             let target_path = target_dir.join(&task.file_name);
