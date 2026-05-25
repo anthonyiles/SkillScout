@@ -1,8 +1,19 @@
 import { ref, onMounted, onUnmounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useToast } from './useToast'
 import { formatError } from '../utils/formatError'
+import {
+  getProjects,
+  getAgents,
+  getRepositoryItems,
+  getSetting,
+  syncRepo as apiSyncRepo,
+  getItemSelections,
+  toggleItemSelection,
+  getProjectFiles,
+  applySkills,
+  type SyncTask,
+} from '../api'
 
 export interface RepositoryItem {
   id: string
@@ -32,12 +43,6 @@ interface ItemSelection {
   applied_sha: string | null
 }
 
-interface ApplyTask {
-  source_file: string | null
-  target_dir: string
-  file_name: string
-  remove: boolean
-}
 
 export type ItemFolder = 'skills' | 'rules'
 
@@ -73,7 +78,7 @@ export function useItemsMatrix(folder: ItemFolder) {
     items.value.forEach(item => { nextMatrix[item.id] = new Set() })
 
     try {
-      const selections = await invoke<ItemSelection[]>('get_item_selections')
+      const selections = await getItemSelections()
       if (selections) {
         for (const sel of selections) {
           if (nextMatrix[sel.item_id]) nextMatrix[sel.item_id].add(sel.project_id)
@@ -88,21 +93,21 @@ export function useItemsMatrix(folder: ItemFolder) {
 
   async function loadData() {
     try {
-      const fetchedProjects = await invoke<Project[]>('get_projects')
+      const fetchedProjects = await getProjects()
       if (fetchedProjects) projects.value = fetchedProjects
     } catch (err) {
       console.error('Failed to load projects:', err)
     }
 
     try {
-      const fetchedAgents = await invoke<Agent[]>('get_agents')
+      const fetchedAgents = await getAgents()
       if (fetchedAgents) agents.value = fetchedAgents
     } catch (err) {
       console.error('Failed to load agents:', err)
     }
 
     try {
-      const fetchedItems = await invoke<RepositoryItem[]>('get_repository_items', { folder })
+      const fetchedItems = await getRepositoryItems(folder)
       if (Array.isArray(fetchedItems)) {
         items.value = fetchedItems
         await initializeMatrix()
@@ -116,12 +121,12 @@ export function useItemsMatrix(folder: ItemFolder) {
   async function syncRepo() {
     loading.value = true
     try {
-      const repoUrl = await invoke<string | null>('get_setting', { key: 'repoUrl' })
+      const repoUrl = await getSetting('repoUrl')
       if (!repoUrl) {
         error('Please configure a repository URL in Settings first.')
         return
       }
-      const count = await invoke<number>('sync_repo', { repoUrl })
+      const count = await apiSyncRepo(repoUrl)
       success(`Successfully synced repository! (${count} items processed)`)
       await loadData()
     } catch (err: unknown) {
@@ -140,7 +145,7 @@ export function useItemsMatrix(folder: ItemFolder) {
       selectionMatrix.value[itemId].add(projectId)
     }
     try {
-      await invoke('toggle_item_selection', { itemId, projectId })
+      await toggleItemSelection(itemId, projectId)
     } catch (err) {
       // Rollback optimistic change
       if (wasSelected) {
@@ -170,10 +175,7 @@ export function useItemsMatrix(folder: ItemFolder) {
       if (agentPaths.size === 0) continue
 
       try {
-        const foundFiles = await invoke<string[]>('get_project_files', {
-          projectPath: project.path,
-          subFolders: Array.from(agentPaths),
-        })
+        const foundFiles = await getProjectFiles(project.path, Array.from(agentPaths))
 
         for (const item of items.value) {
           if (!selectionMatrix.value[item.id]) selectionMatrix.value[item.id] = new Set()
@@ -186,7 +188,7 @@ export function useItemsMatrix(folder: ItemFolder) {
             } else {
               selectionMatrix.value[item.id].delete(project.id)
             }
-            await invoke('toggle_item_selection', { itemId: item.id, projectId: project.id })
+            await toggleItemSelection(item.id, project.id)
             updated = true
           }
         }
@@ -203,7 +205,7 @@ export function useItemsMatrix(folder: ItemFolder) {
   }
 
   async function applyToProjects() {
-    const tasks: ApplyTask[] = []
+    const tasks: SyncTask[] = []
     let missingConfigError = ''
 
     for (const item of items.value) {
@@ -252,7 +254,7 @@ export function useItemsMatrix(folder: ItemFolder) {
 
     applying.value = true
     try {
-      await invoke('apply_skills', { tasks })
+      await applySkills(tasks)
       success(`Successfully updated ${folder} across your projects!`)
     } catch (err: unknown) {
       error(formatError(err, `Failed to apply ${folder} to projects.`))

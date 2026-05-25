@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { useToast } from '../composables/useToast'
 import { formatError } from '../utils/formatError'
+import { getSetting, setSetting } from '../api'
 import BaseButton from '../components/BaseButton.vue'
 import InputField from '../components/InputField.vue'
 import PageLayout from '../components/PageLayout.vue'
@@ -21,7 +21,7 @@ function isValidGitHubRepoUrl(url: string): boolean {
 
 onMounted(async () => {
   try {
-    const savedRepo = await invoke<string | null>('get_setting', { key: 'repoUrl' })
+    const savedRepo = await getSetting('repoUrl')
     if (savedRepo) repoUrl.value = savedRepo
   } catch (e: any) {
     console.error('Failed to load settings:', e)
@@ -35,7 +35,7 @@ async function saveConfig() {
   }
   saving.value = true
   try {
-    await invoke('set_setting', { key: 'repoUrl', value: repoUrl.value.trim() })
+    await setSetting('repoUrl', repoUrl.value.trim())
     success('Configuration saved successfully!')
   } catch (err: unknown) {
     error(formatError(err, 'Failed to save configuration'))

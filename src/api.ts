@@ -85,8 +85,28 @@ export function getProjects(): Promise<Project[]> {
   return invoke('get_projects')
 }
 
+export function saveProject(project: Omit<Project, 'id'> & { id: number | null }): Promise<Project> {
+  return invoke('save_project', { project })
+}
+
+export function deleteProject(id: number): Promise<void> {
+  return invoke('delete_project', { id })
+}
+
 export function getAgents(): Promise<Agent[]> {
   return invoke('get_agents')
+}
+
+export function saveAgent(agent: Agent): Promise<void> {
+  return invoke('save_agent', { agent })
+}
+
+export function deleteAgent(id: string): Promise<void> {
+  return invoke('delete_agent', { id })
+}
+
+export function resetAgentsToDefaults(): Promise<void> {
+  return invoke('reset_agents_to_defaults')
 }
 
 // Repository items

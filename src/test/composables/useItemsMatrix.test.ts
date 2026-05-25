@@ -1,10 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { defineComponent } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
-import { invoke } from '@tauri-apps/api/core'
+import * as api from '../../api'
 import { useItemsMatrix } from '../../composables/useItemsMatrix'
 
-const mockInvoke = vi.mocked(invoke)
+vi.mock('../../api', () => ({
+  getProjects: vi.fn(),
+  getAgents: vi.fn(),
+  getRepositoryItems: vi.fn(),
+  getSetting: vi.fn(),
+  syncRepo: vi.fn(),
+  getItemSelections: vi.fn(),
+  toggleItemSelection: vi.fn(),
+  getProjectFiles: vi.fn(),
+  applySkills: vi.fn(),
+}))
 
 const mockProjects = [
   { id: 1, path: '/home/user/project-a', agentIds: ['cursor'] },
@@ -22,6 +32,8 @@ const mockItems = [
     description: null,
     file_path: '/repo/skills/my-skill.md',
     content: '# My Skill',
+    sha: 'abc123',
+    last_synced: null,
   },
 ]
 
@@ -50,15 +62,15 @@ function mountMatrix(folder: 'skills' | 'rules' = 'skills') {
 describe('useItemsMatrix', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockInvoke.mockImplementation(async (cmd: string) => {
-      if (cmd === 'get_projects') return mockProjects
-      if (cmd === 'get_agents') return mockAgents
-      if (cmd === 'get_repository_items') return mockItems
-      if (cmd === 'get_item_selections') return []
-      if (cmd === 'get_project_files') return []
-      if (cmd === 'toggle_item_selection') return undefined
-      return null
-    })
+    vi.mocked(api.getProjects).mockResolvedValue(mockProjects)
+    vi.mocked(api.getAgents).mockResolvedValue(mockAgents)
+    vi.mocked(api.getRepositoryItems).mockResolvedValue(mockItems)
+    vi.mocked(api.getItemSelections).mockResolvedValue([])
+    vi.mocked(api.getProjectFiles).mockResolvedValue([])
+    vi.mocked(api.toggleItemSelection).mockResolvedValue(undefined)
+    vi.mocked(api.getSetting).mockResolvedValue(null)
+    vi.mocked(api.syncRepo).mockResolvedValue(0)
+    vi.mocked(api.applySkills).mockResolvedValue(0)
   })
 
   it('getProjectName extracts the last path segment', () => {
@@ -91,15 +103,11 @@ describe('useItemsMatrix', () => {
     expect(result.projects.value[0].path).toBe('/home/user/project-a')
   })
 
-  it('initialises selectionMatrix from get_item_selections', async () => {
-    mockInvoke.mockImplementation(async (cmd: string) => {
-      if (cmd === 'get_projects') return mockProjects
-      if (cmd === 'get_agents') return mockAgents
-      if (cmd === 'get_repository_items') return mockItems
-      if (cmd === 'get_item_selections') return [{ item_id: 'skill-1', project_id: 1, applied_sha: null }]
-      if (cmd === 'get_project_files') return ['my-skill.md']
-      return null
-    })
+  it('initialises selectionMatrix from getItemSelections', async () => {
+    vi.mocked(api.getItemSelections).mockResolvedValue([
+      { item_id: 'skill-1', project_id: 1, applied_sha: null },
+    ])
+    vi.mocked(api.getProjectFiles).mockResolvedValue(['my-skill.md'])
 
     const { result } = mountMatrix()
     await flushPromises()
@@ -110,73 +118,54 @@ describe('useItemsMatrix', () => {
     const { result } = mountMatrix()
     await flushPromises()
 
-    mockInvoke.mockResolvedValueOnce(undefined)
     await result.toggleSelection('skill-1', 1)
-
     expect(result.isSelected('skill-1', 1)).toBe(true)
+    expect(api.toggleItemSelection).toHaveBeenCalledWith('skill-1', 1)
   })
 
   it('toggleSelection optimistically deselects an already-selected item', async () => {
     const { result } = mountMatrix()
     await flushPromises()
 
-    // Select first
-    mockInvoke.mockResolvedValueOnce(undefined)
     await result.toggleSelection('skill-1', 1)
     expect(result.isSelected('skill-1', 1)).toBe(true)
 
-    // Then deselect
-    mockInvoke.mockResolvedValueOnce(undefined)
     await result.toggleSelection('skill-1', 1)
     expect(result.isSelected('skill-1', 1)).toBe(false)
   })
 
-  it('toggleSelection rolls back the optimistic update on invoke error', async () => {
+  it('toggleSelection rolls back the optimistic update on API error', async () => {
     const { result } = mountMatrix()
     await flushPromises()
 
-    // Manually pre-select via the matrix so we can test rollback of a deselect
     result.selectionMatrix.value['skill-1'] = new Set([1])
+    vi.mocked(api.toggleItemSelection).mockRejectedValueOnce(new Error('DB error'))
 
-    mockInvoke.mockRejectedValueOnce(new Error('DB error'))
     await result.toggleSelection('skill-1', 1)
 
     // Was selected, tried to deselect, backend failed → should be re-selected
     expect(result.isSelected('skill-1', 1)).toBe(true)
   })
 
-  it('toggleSelection calls invoke with the correct command and args', async () => {
-    const { result } = mountMatrix()
-    await flushPromises()
-    vi.clearAllMocks()
-
-    mockInvoke.mockResolvedValueOnce(undefined)
-    await result.toggleSelection('skill-1', 1)
-
-    expect(mockInvoke).toHaveBeenCalledWith('toggle_item_selection', {
-      itemId: 'skill-1',
-      projectId: 1,
-    })
-  })
-
   it('loading is true during syncRepo and false afterward', async () => {
+    vi.mocked(api.getSetting).mockResolvedValue('https://github.com/user/repo')
+    vi.mocked(api.syncRepo).mockResolvedValue(5)
+
     const { result } = mountMatrix()
     await flushPromises()
-
-    mockInvoke.mockImplementation(async (cmd: string) => {
-      if (cmd === 'get_setting') return 'https://github.com/user/repo'
-      if (cmd === 'sync_repo') return 5
-      if (cmd === 'get_projects') return mockProjects
-      if (cmd === 'get_agents') return mockAgents
-      if (cmd === 'get_repository_items') return mockItems
-      if (cmd === 'get_item_selections') return []
-      if (cmd === 'get_project_files') return []
-      return null
-    })
 
     const syncPromise = result.syncRepo()
     expect(result.loading.value).toBe(true)
     await syncPromise
     expect(result.loading.value).toBe(false)
+  })
+
+  it('syncRepo shows an error when no repo URL is configured', async () => {
+    vi.mocked(api.getSetting).mockResolvedValue(null)
+    const { result } = mountMatrix()
+    await flushPromises()
+
+    await result.syncRepo()
+    expect(api.syncRepo).not.toHaveBeenCalled()
   })
 })

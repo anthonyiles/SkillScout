@@ -67,10 +67,47 @@ describe('api', () => {
     })
   })
 
+  describe('saveProject', () => {
+    it('passes the project to the command', async () => {
+      const project = { id: null, path: '/home/user/project', agentIds: ['cursor'] }
+      await api.saveProject(project)
+      expect(mockInvoke).toHaveBeenCalledWith('save_project', { project })
+    })
+  })
+
+  describe('deleteProject', () => {
+    it('passes the id to the command', async () => {
+      await api.deleteProject(3)
+      expect(mockInvoke).toHaveBeenCalledWith('delete_project', { id: 3 })
+    })
+  })
+
   describe('getAgents', () => {
     it('calls the correct command with no args', async () => {
       await api.getAgents()
       expect(mockInvoke).toHaveBeenCalledWith('get_agents')
+    })
+  })
+
+  describe('saveAgent', () => {
+    it('passes the agent to the command', async () => {
+      const agent = { id: 'cursor', name: 'Cursor', skillsPath: '.cursor/skills', rulesPath: '.cursor/rules' }
+      await api.saveAgent(agent)
+      expect(mockInvoke).toHaveBeenCalledWith('save_agent', { agent })
+    })
+  })
+
+  describe('deleteAgent', () => {
+    it('passes the id to the command', async () => {
+      await api.deleteAgent('custom-abc')
+      expect(mockInvoke).toHaveBeenCalledWith('delete_agent', { id: 'custom-abc' })
+    })
+  })
+
+  describe('resetAgentsToDefaults', () => {
+    it('calls the correct command with no args', async () => {
+      await api.resetAgentsToDefaults()
+      expect(mockInvoke).toHaveBeenCalledWith('reset_agents_to_defaults')
     })
   })
 

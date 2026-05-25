@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { useToast } from '../composables/useToast'
 import { formatError } from '../utils/formatError'
+import { getProjects, saveProject, deleteProject, getAgents } from '../api'
 import TickBox from '../components/TickBox.vue'
 import BaseButton from '../components/BaseButton.vue'
 import InputField from '../components/InputField.vue'
@@ -31,7 +31,7 @@ const { success, error } = useToast()
 
 async function loadData() {
   try {
-    const fetchedProjects = await invoke<Project[]>('get_projects')
+    const fetchedProjects = await getProjects()
     if (fetchedProjects && fetchedProjects.length > 0) {
       projects.value = fetchedProjects.map(project => ({ ...project, _tempId: project.id?.toString() || crypto.randomUUID() }))
     } else {
@@ -43,7 +43,7 @@ async function loadData() {
   }
 
   try {
-    const fetchedAgents = await invoke<Agent[]>('get_agents')
+    const fetchedAgents = await getAgents()
     if (fetchedAgents) {
       availableAgents.value = fetchedAgents
     }
@@ -62,9 +62,7 @@ async function saveConfig() {
     const updatedProjects = []
     for (const project of projects.value) {
       if (!project.path) continue
-      const saved = await invoke<Project>('save_project', {
-        project: { id: project.id, path: project.path, agentIds: project.agentIds }
-      })
+      const saved = await saveProject({ id: project.id, path: project.path, agentIds: project.agentIds })
       updatedProjects.push({ ...saved, _tempId: saved.id?.toString() || crypto.randomUUID() })
     }
     projects.value = updatedProjects
@@ -84,7 +82,7 @@ function addProject() {
 async function removeProject(project: Project) {
   if (project.id) {
     try {
-      await invoke('delete_project', { id: project.id })
+      await deleteProject(project.id)
     } catch (err) {
       error('Failed to delete project')
       return
