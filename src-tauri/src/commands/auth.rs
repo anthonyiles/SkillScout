@@ -19,8 +19,8 @@ pub async fn start_github_device_flow() -> Result<DeviceAuthResponse, String> {
     let res = client.post(GITHUB_DEVICE_CODE_URL)
         .header("Accept", "application/json")
         .query(&[
-            ("client_id", &client_id),
-            ("scope", &"repo".to_string())
+            ("client_id", client_id),
+            ("scope", "repo"),
         ])
         .send()
         .await
@@ -63,9 +63,9 @@ pub async fn poll_github_token(device_code: String) -> Result<TokenResponse, Str
     let res = client.post(GITHUB_OAUTH_TOKEN_URL)
         .header("Accept", "application/json")
         .query(&[
-            ("client_id", &client_id),
-            ("device_code", &device_code),
-            ("grant_type", &"urn:ietf:params:oauth:grant-type:device_code".to_string()),
+            ("client_id", client_id),
+            ("device_code", device_code.as_str()),
+            ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
         ])
         .send()
         .await
