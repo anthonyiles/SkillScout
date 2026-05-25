@@ -37,7 +37,6 @@ Pre-built installers for Windows, macOS, and Linux are available on the [Release
 | [Node.js](https://nodejs.org/) | 18+ |
 | [Rust](https://rustup.rs/) | stable (latest) |
 | [Tauri CLI prerequisites](https://v2.tauri.app/start/prerequisites/) | platform-specific (see below) |
-| A GitHub OAuth App | for authentication |
 
 ### Platform-specific Tauri dependencies
 
@@ -49,15 +48,21 @@ Follow the official Tauri v2 guide for your OS:
 
 ---
 
-## GitHub OAuth App Setup
+## GitHub OAuth App
 
-SkillScout uses the GitHub Device Flow for authentication. You need to register an OAuth App:
+SkillScout uses the GitHub Device Flow for authentication. The app ships with a pre-configured developer OAuth App — contributors don't need to register their own. The client ID is provided via `.env` for local development and via a GitHub Actions secret for release builds.
+
+<details>
+<summary>Registering your own OAuth App (forks / self-hosted deployments only)</summary>
 
 1. Go to **GitHub → Settings → Developer settings → OAuth Apps → New OAuth App**.
 2. Set **Application name** to anything (e.g. `SkillScout`).
 3. Set **Homepage URL** to `http://localhost`.
 4. Set **Authorization callback URL** to `http://localhost` (Device Flow does not use a redirect URL, but the field is required).
 5. Click **Register application**, then note the **Client ID**.
+6. Add `GITHUB_CLIENT_ID=<your-client-id>` to your `.env` file.
+
+</details>
 
 ---
 
@@ -78,13 +83,13 @@ npm install
 
 ### 3. Configure environment variables
 
-SkillScout reads the GitHub OAuth Client ID from an environment variable at runtime. Create a `.env` file in the project root:
+Copy `.env.example` to `.env` — it contains the developer app client ID needed to authenticate:
 
-```env
-GITHUB_CLIENT_ID=your_github_oauth_client_id_here
+```bash
+cp .env.example .env
 ```
 
-> The `.env` file is read by the Rust backend via the `dotenvy` crate. Do **not** commit this file.
+> The client ID is baked into the binary at compile time. Do **not** commit `.env`.
 
 ### 4. Run in development mode
 
