@@ -91,6 +91,9 @@ pub fn initialize_database(app_handle: &AppHandle) -> Result<Connection, Box<dyn
         "
     )?;
 
+    // Migrations for columns added after initial schema
+    conn.execute("ALTER TABLE promoted_items ADD COLUMN sub_folder TEXT", []).ok();
+
     let is_first_run: rusqlite::Result<String> = conn.query_row(
         "SELECT value FROM settings WHERE key = 'initialized_defaults'",
         [],
