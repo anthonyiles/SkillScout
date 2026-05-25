@@ -23,6 +23,6 @@ let timestamp = SystemTime::now()
 `.unwrap()` is acceptable in:
 - `#[cfg(test)]` test code
 - `main()` / app setup where a panic is the intended failure mode
-- Cases where the type system guarantees the value (e.g. `"literal".parse::<i32>().unwrap()`)
+- Cases where the type system guarantees the value (e.g. `"42".parse::<i32>().unwrap()`)
 
 Everywhere else: propagate with `?` or convert to `SkillScoutError`.

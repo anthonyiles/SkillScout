@@ -24,7 +24,7 @@ pub async fn sync_repo(repo_url: String) -> Result<(), String> {
         Ok(())
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??
 }
 ```
 
