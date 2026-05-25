@@ -16,18 +16,7 @@ impl AppState {
     }
 }
 
-pub fn initialize_database(app_handle: &AppHandle) -> Result<Connection, Box<dyn std::error::Error>> {
-    let app_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|_| std::io::Error::new(std::io::ErrorKind::NotFound, "Failed to resolve app data directory"))?;
-
-    std::fs::create_dir_all(&app_dir)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to create app data directory: {}", e)))?;
-
-    let db_path = app_dir.join("app_state.db");
-    let conn = Connection::open(&db_path)?;
-
+pub(crate) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute("PRAGMA foreign_keys = ON;", [])?;
 
     conn.execute_batch(
@@ -91,9 +80,13 @@ pub fn initialize_database(app_handle: &AppHandle) -> Result<Connection, Box<dyn
         "
     )?;
 
-    // Migrations for columns added after initial schema
+    // Migration for column added after initial schema
     conn.execute("ALTER TABLE promoted_items ADD COLUMN sub_folder TEXT", []).ok();
 
+    Ok(())
+}
+
+pub(crate) fn seed_defaults(conn: &Connection) -> rusqlite::Result<()> {
     let is_first_run: rusqlite::Result<String> = conn.query_row(
         "SELECT value FROM settings WHERE key = 'initialized_defaults'",
         [],
@@ -111,5 +104,112 @@ pub fn initialize_database(app_handle: &AppHandle) -> Result<Connection, Box<dyn
         ")?;
     }
 
+    Ok(())
+}
+
+pub fn initialize_database(app_handle: &AppHandle) -> Result<Connection, Box<dyn std::error::Error>> {
+    let app_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::NotFound, "Failed to resolve app data directory"))?;
+
+    std::fs::create_dir_all(&app_dir)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to create app data directory: {}", e)))?;
+
+    let db_path = app_dir.join("app_state.db");
+    let conn = Connection::open(&db_path)?;
+
+    create_schema(&conn)?;
+    seed_defaults(&conn)?;
+
     Ok(conn)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn open_test_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        create_schema(&conn).unwrap();
+        conn
+    }
+
+    #[test]
+    fn create_schema_creates_all_tables() {
+        let conn = open_test_db();
+        let tables: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        assert!(tables.contains(&"settings".to_string()));
+        assert!(tables.contains(&"agents".to_string()));
+        assert!(tables.contains(&"projects".to_string()));
+        assert!(tables.contains(&"project_agents".to_string()));
+        assert!(tables.contains(&"repository_items".to_string()));
+        assert!(tables.contains(&"item_selections".to_string()));
+        assert!(tables.contains(&"promoted_items".to_string()));
+    }
+
+    #[test]
+    fn create_schema_is_idempotent() {
+        let conn = open_test_db();
+        // Running a second time must not error (all tables use IF NOT EXISTS)
+        assert!(create_schema(&conn).is_ok());
+    }
+
+    #[test]
+    fn seed_defaults_inserts_three_default_agents() {
+        let conn = open_test_db();
+        seed_defaults(&conn).unwrap();
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM agents", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn seed_defaults_is_idempotent() {
+        let conn = open_test_db();
+        seed_defaults(&conn).unwrap();
+        seed_defaults(&conn).unwrap();
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM agents", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn seed_defaults_sets_initialized_flag() {
+        let conn = open_test_db();
+        seed_defaults(&conn).unwrap();
+
+        let value: String = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'initialized_defaults'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(value, "true");
+    }
+
+    #[test]
+    fn foreign_keys_are_enforced() {
+        let conn = open_test_db();
+        seed_defaults(&conn).unwrap();
+
+        // Inserting a project_agents row referencing a non-existent project should fail
+        let result = conn.execute(
+            "INSERT INTO project_agents (project_id, agent_id) VALUES (9999, 'cursor')",
+            [],
+        );
+        assert!(result.is_err());
+    }
 }
