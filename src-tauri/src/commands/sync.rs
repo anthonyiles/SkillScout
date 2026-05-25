@@ -416,15 +416,23 @@ pub fn get_project_files(project_path: String, sub_folders: Vec<String>) -> Vec<
         }
         let folder_path = base_path.join(&folder);
         if folder_path.exists() && folder_path.is_dir() {
-            if let Ok(entries) = fs::read_dir(folder_path) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                        if !file_name.starts_with('.') {
-                            files.push(file_name.to_string());
+            match fs::read_dir(&folder_path) {
+                Ok(entries) => {
+                    for entry_res in entries {
+                        match entry_res {
+                            Ok(entry) => {
+                                let path = entry.path();
+                                if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                                    if !file_name.starts_with('.') {
+                                        files.push(file_name.to_string());
+                                    }
+                                }
+                            }
+                            Err(e) => eprintln!("Failed to read entry in {:?}: {}", folder_path, e),
                         }
                     }
                 }
+                Err(e) => eprintln!("Failed to read directory {:?}: {}", folder_path, e),
             }
         }
     }
