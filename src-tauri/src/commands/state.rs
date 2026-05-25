@@ -219,6 +219,15 @@ mod tests {
         conn
     }
 
+    // Returns a platform-appropriate absolute path for use in tests.
+    // Windows does not recognise Unix-rooted paths as absolute.
+    fn abs_test_path(name: &str) -> String {
+        #[cfg(windows)]
+        { format!("C:\\Users\\{}", name) }
+        #[cfg(not(windows))]
+        { format!("/home/user/{}", name) }
+    }
+
     // ── Settings ──────────────────────────────────────────────────────────────
 
     #[test]
@@ -312,11 +321,11 @@ mod tests {
     #[test]
     fn save_project_inserts_and_assigns_id() {
         let mut conn = open_test_db();
-        // seed_defaults seeds agents; we need one to assign to the project
-        let project = Project { id: None, path: "/home/user/project".to_string(), agent_ids: vec!["cursor".to_string()] };
+        let path = abs_test_path("project");
+        let project = Project { id: None, path: path.clone(), agent_ids: vec!["cursor".to_string()] };
         let saved = db_save_project(&mut conn, &project).unwrap();
         assert!(saved.id.is_some());
-        assert_eq!(saved.path, "/home/user/project");
+        assert_eq!(saved.path, path);
         assert_eq!(saved.agent_ids, vec!["cursor"]);
     }
 
@@ -330,27 +339,29 @@ mod tests {
     #[test]
     fn get_projects_returns_saved_project() {
         let mut conn = open_test_db();
-        let project = Project { id: None, path: "/home/user/alpha".to_string(), agent_ids: vec![] };
+        let path = abs_test_path("alpha");
+        let project = Project { id: None, path: path.clone(), agent_ids: vec![] };
         db_save_project(&mut conn, &project).unwrap();
         let projects = db_get_projects(&conn).unwrap();
-        assert!(projects.iter().any(|p| p.path == "/home/user/alpha"));
+        assert!(projects.iter().any(|p| p.path == path));
     }
 
     #[test]
     fn delete_project_removes_it() {
         let mut conn = open_test_db();
-        let project = Project { id: None, path: "/home/user/beta".to_string(), agent_ids: vec![] };
+        let path = abs_test_path("beta");
+        let project = Project { id: None, path: path.clone(), agent_ids: vec![] };
         let saved = db_save_project(&mut conn, &project).unwrap();
         db_delete_project(&conn, saved.id.unwrap()).unwrap();
         let projects = db_get_projects(&conn).unwrap();
-        assert!(!projects.iter().any(|p| p.path == "/home/user/beta"));
+        assert!(!projects.iter().any(|p| p.path == path));
     }
 
     // ── Path validation ───────────────────────────────────────────────────────
 
     #[test]
     fn validate_project_path_accepts_absolute_path() {
-        assert!(validate_project_path("/home/user/project").is_ok());
+        assert!(validate_project_path(&abs_test_path("project")).is_ok());
     }
 
     #[test]
@@ -365,6 +376,10 @@ mod tests {
 
     #[test]
     fn validate_project_path_rejects_traversal() {
-        assert!(validate_project_path("/home/user/../../../etc").is_err());
+        #[cfg(windows)]
+        let path = "C:\\Users\\user\\..\\..\\Windows";
+        #[cfg(not(windows))]
+        let path = "/home/user/../../../etc";
+        assert!(validate_project_path(path).is_err());
     }
 }
