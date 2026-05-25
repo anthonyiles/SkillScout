@@ -24,6 +24,8 @@ export const useUpdater = createSharedComposable(() => {
       const update = await check()
       if (update?.available) {
         updateAvailable.value = { version: update.version, notes: update.body ?? null }
+      } else {
+        updateAvailable.value = null
       }
     } catch (e) {
       // Best-effort on startup — network unavailability is not a user-facing error
