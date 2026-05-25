@@ -85,7 +85,7 @@ export function getProjects(): Promise<Project[]> {
   return invoke('get_projects')
 }
 
-export function saveProject(project: Omit<Project, 'id'> & { id: number | null }): Promise<Project> {
+export function saveProject(project: Omit<Project, 'id'> & { id: number | null }): Promise<Omit<Project, 'id'> & { id: number | null }> {
   return invoke('save_project', { project })
 }
 

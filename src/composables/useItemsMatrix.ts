@@ -37,13 +37,6 @@ export interface Agent {
   rulesPath: string
 }
 
-interface ItemSelection {
-  item_id: string
-  project_id: number
-  applied_sha: string | null
-}
-
-
 export type ItemFolder = 'skills' | 'rules'
 
 export function useItemsMatrix(folder: ItemFolder) {
