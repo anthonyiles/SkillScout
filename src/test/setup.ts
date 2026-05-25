@@ -13,5 +13,5 @@ vi.mock('@tauri-apps/api/event', () => ({
 // Teleport moves content outside the wrapper's subtree, making wrapper.find()
 // return nothing in happy-dom. Stub it to render its slot inline instead.
 config.global.stubs = {
-  Teleport: { template: '<div><slot /></div>' },
+  Teleport: { template: '<slot />' },
 }
