@@ -12,7 +12,10 @@ pub async fn start_github_device_flow() -> Result<DeviceAuthResponse, String> {
         return Err("GitHub Client ID is missing or invalid in configuration.".to_string());
     }
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|_| "Failed to build HTTP client.".to_string())?;
     let res = client.post(GITHUB_DEVICE_CODE_URL)
         .header("Accept", "application/json")
         .query(&[
@@ -53,7 +56,10 @@ pub async fn poll_github_token(device_code: String) -> Result<TokenResponse, Str
         return Err("GitHub Client ID is missing or invalid in configuration.".to_string());
     }
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|_| "Failed to build HTTP client.".to_string())?;
     let res = client.post(GITHUB_OAUTH_TOKEN_URL)
         .header("Accept", "application/json")
         .query(&[

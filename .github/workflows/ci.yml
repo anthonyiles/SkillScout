@@ -51,8 +51,12 @@ jobs:
 
       - name: cargo check
         working-directory: src-tauri
+        env:
+          GITHUB_CLIENT_ID: ci-placeholder
         run: cargo check
 
       - name: cargo test
         working-directory: src-tauri
+        env:
+          GITHUB_CLIENT_ID: ci-placeholder
         run: cargo test
