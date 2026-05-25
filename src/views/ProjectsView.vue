@@ -171,6 +171,7 @@ async function removeProject(project: LocalProject) {
       return
     }
   }
+  lastSavedAgentIds.value.delete(project._tempId)
   projects.value = projects.value.filter(existing => existing._tempId !== project._tempId)
   if (projects.value.length === 0) addProject()
 }

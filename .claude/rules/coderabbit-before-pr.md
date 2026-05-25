@@ -5,12 +5,12 @@ Before creating a pull request for any branch, run the CodeRabbit skill to catch
 **When to apply:** Any time you are about to open a PR, have finished implementing a feature/fix, or the user indicates a branch is PR-ready.
 
 **How to run:**
-```
+```bash
 /coderabbit:code-review
 ```
 
 Or via the skill invocation in Claude Code:
-```
+```text
 use the coderabbit skill
 ```
 

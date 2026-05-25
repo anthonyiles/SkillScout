@@ -4,7 +4,7 @@ import type { Agent, PrStatus } from './types'
 // Shared response types matching Rust model serialization
 
 export interface Project {
-  id: number
+  id: number | null
   path: string
   agentIds: string[]
 }
