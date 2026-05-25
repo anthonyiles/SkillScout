@@ -2,7 +2,16 @@
 import { ref, onMounted } from 'vue'
 import { useToast } from '../composables/useToast'
 import { formatError } from '../utils/formatError'
-import { getProjects, saveProject, deleteProject, getAgents } from '../api'
+import {
+  getProjects,
+  getAgents,
+  saveProject,
+  deleteProject,
+  getRepositoryItems,
+  getItemSelections,
+  applySkills,
+} from '../api'
+import type { RepositoryItem, ItemSelection, SyncTask } from '../api'
 import TickBox from '../components/TickBox.vue'
 import BaseButton from '../components/BaseButton.vue'
 import InputField from '../components/InputField.vue'
@@ -17,23 +26,34 @@ interface Agent {
   rulesPath: string
 }
 
-interface Project {
+interface LocalProject {
   id: number | null
   path: string
   agentIds: string[]
-  _tempId?: string
+  _tempId: string
 }
 
-const projects = ref<Project[]>([])
+const projects = ref<LocalProject[]>([])
 const availableAgents = ref<Agent[]>([])
 const saving = ref(false)
+const lastSavedAgentIds = ref<Map<string, string[]>>(new Map())
 const { success, error } = useToast()
 
 async function loadData() {
   try {
     const fetchedProjects = await getProjects()
     if (fetchedProjects && fetchedProjects.length > 0) {
-      projects.value = fetchedProjects.map(project => ({ ...project, _tempId: project.id?.toString() || crypto.randomUUID() }))
+      const withTempIds = fetchedProjects.map(project => ({
+        ...project,
+        _tempId: project.id?.toString() || crypto.randomUUID(),
+      }))
+      projects.value = withTempIds
+
+      const snapshot = new Map<string, string[]>()
+      for (const p of withTempIds) {
+        snapshot.set(p._tempId, [...p.agentIds])
+      }
+      lastSavedAgentIds.value = snapshot
     } else {
       addProject()
     }
@@ -56,15 +76,78 @@ onMounted(() => {
   loadData()
 })
 
+async function applyAgentSync(
+  project: LocalProject,
+  addedAgentIds: string[],
+  removedAgentIds: string[],
+  allItems: RepositoryItem[],
+  allSelections: ItemSelection[],
+) {
+  const selectedItemIds = new Set(
+    allSelections.filter(s => s.project_id === project.id).map(s => s.item_id)
+  )
+
+  const tasks: SyncTask[] = []
+
+  for (const agentId of removedAgentIds) {
+    const agent = availableAgents.value.find(a => a.id === agentId)
+    if (!agent) continue
+    for (const item of allItems) {
+      if (!selectedItemIds.has(item.id)) continue
+      const agentPath = item.folder === 'skills' ? agent.skillsPath : agent.rulesPath
+      if (!agentPath) continue
+      tasks.push({ source_file: null, target_dir: `${project.path}/${agentPath}`, file_name: item.name, remove: true })
+    }
+  }
+
+  for (const agentId of addedAgentIds) {
+    const agent = availableAgents.value.find(a => a.id === agentId)
+    if (!agent) continue
+    for (const item of allItems) {
+      if (!selectedItemIds.has(item.id)) continue
+      const agentPath = item.folder === 'skills' ? agent.skillsPath : agent.rulesPath
+      if (!agentPath) continue
+      tasks.push({ source_file: item.file_path, target_dir: `${project.path}/${agentPath}`, file_name: item.name, remove: false })
+    }
+  }
+
+  if (tasks.length === 0) return
+  await applySkills(tasks)
+}
+
 async function saveConfig() {
   saving.value = true
   try {
-    const updatedProjects = []
+    const [allItems, allSelections] = await Promise.all([getRepositoryItems(), getItemSelections()])
+
+    const updatedProjects: LocalProject[] = []
     for (const project of projects.value) {
       if (!project.path) continue
+
+      const oldIds = lastSavedAgentIds.value.get(project._tempId) ?? []
+      const newIds = project.agentIds
+      const addedAgentIds = newIds.filter(id => !oldIds.includes(id))
+      const removedAgentIds = oldIds.filter(id => !newIds.includes(id))
+
       const saved = await saveProject({ id: project.id, path: project.path, agentIds: project.agentIds })
-      updatedProjects.push({ ...saved, _tempId: saved.id?.toString() || crypto.randomUUID() })
+      const savedWithTemp: LocalProject = { ...saved, id: saved.id ?? null, _tempId: saved.id?.toString() || crypto.randomUUID() }
+      updatedProjects.push(savedWithTemp)
+
+      if (savedWithTemp.id !== null && (addedAgentIds.length > 0 || removedAgentIds.length > 0)) {
+        try {
+          await applyAgentSync(savedWithTemp, addedAgentIds, removedAgentIds, allItems, allSelections)
+        } catch (err: unknown) {
+          error(formatError(err, 'Projects saved, but failed to sync some skill/rule files.'))
+        }
+      }
     }
+
+    const newSnapshot = new Map<string, string[]>()
+    for (const p of updatedProjects) {
+      newSnapshot.set(p._tempId, [...p.agentIds])
+    }
+    lastSavedAgentIds.value = newSnapshot
+
     projects.value = updatedProjects
     if (projects.value.length === 0) addProject()
     success('Projects saved successfully!')
@@ -79,7 +162,7 @@ function addProject() {
   projects.value.push({ id: null, path: '', agentIds: [], _tempId: crypto.randomUUID() })
 }
 
-async function removeProject(project: Project) {
+async function removeProject(project: LocalProject) {
   if (project.id) {
     try {
       await deleteProject(project.id)
@@ -88,11 +171,12 @@ async function removeProject(project: Project) {
       return
     }
   }
+  lastSavedAgentIds.value.delete(project._tempId)
   projects.value = projects.value.filter(existing => existing._tempId !== project._tempId)
   if (projects.value.length === 0) addProject()
 }
 
-function toggleAgent(project: Project, agentId: string) {
+function toggleAgent(project: LocalProject, agentId: string) {
   if (project.agentIds.includes(agentId)) {
     project.agentIds = project.agentIds.filter(id => id !== agentId)
   } else {
