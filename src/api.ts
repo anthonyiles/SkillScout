@@ -4,7 +4,7 @@ import type { Agent, PrStatus } from './types'
 // Shared response types matching Rust model serialization
 
 export interface Project {
-  id: number
+  id: number | null
   path: string
   agentIds: string[]
 }
@@ -83,6 +83,14 @@ export function setSetting(key: string, value: string): Promise<void> {
 
 export function getProjects(): Promise<Project[]> {
   return invoke('get_projects')
+}
+
+export function saveProject(project: { id: number | null; path: string; agentIds: string[] }): Promise<Project> {
+  return invoke('save_project', { project })
+}
+
+export function deleteProject(id: number): Promise<void> {
+  return invoke('delete_project', { id })
 }
 
 export function getAgents(): Promise<Agent[]> {
