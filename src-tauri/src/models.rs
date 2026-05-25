@@ -9,6 +9,7 @@ pub struct FileHash {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
 pub struct DeviceAuthResponse {
     pub device_code: String,
     pub user_code: String,
@@ -20,6 +21,7 @@ pub struct DeviceAuthResponse {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
 pub struct TokenResponse {
     pub access_token: Option<String>,
     pub token_type: Option<String>,
