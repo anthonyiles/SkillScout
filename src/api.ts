@@ -85,6 +85,14 @@ export function getProjects(): Promise<Project[]> {
   return invoke('get_projects')
 }
 
+export function saveProject(project: { id: number | null; path: string; agentIds: string[] }): Promise<Project> {
+  return invoke('save_project', { project })
+}
+
+export function deleteProject(id: number): Promise<void> {
+  return invoke('delete_project', { id })
+}
+
 export function getAgents(): Promise<Agent[]> {
   return invoke('get_agents')
 }
