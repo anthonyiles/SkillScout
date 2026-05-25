@@ -59,6 +59,16 @@ jobs:
       - name: Install tauri-driver
         run: cargo install tauri-driver
 
+      - name: Install E2E test dependencies
+        run: |
+          npm install --no-save \
+            @wdio/cli@^9 \
+            @wdio/local-runner@^9 \
+            @wdio/mocha-framework@^9 \
+            @wdio/spec-reporter@^9 \
+            wdio-chromedriver-service@^8 \
+            webdriverio@^9
+
       - name: Build Tauri app (release)
         env:
           GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}

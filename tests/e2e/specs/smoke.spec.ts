@@ -9,9 +9,10 @@ describe('SkillScout smoke tests', () => {
   })
 
   it('shows the Projects view by default', async () => {
-    // The sidebar link for Projects should be active on launch
+    // The sidebar link for Projects should be visible on launch
     const projectsLink = await $('a[href="/"]')
     await expect(projectsLink).toBeDisplayed()
+    await expect(projectsLink).toHaveAttribute('aria-current', 'page')
   })
 
   it('navigates to the Settings view', async () => {
