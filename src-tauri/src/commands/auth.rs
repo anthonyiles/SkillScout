@@ -7,17 +7,20 @@ const GITHUB_USER_URL: &str = "https://api.github.com/user";
 
 #[tauri::command]
 pub async fn start_github_device_flow() -> Result<DeviceAuthResponse, String> {
-    let client_id = std::env::var("GITHUB_CLIENT_ID").unwrap_or_default();
-    if client_id.is_empty() || client_id == "your_sandbox_client_id_here" {
+    let client_id = option_env!("GITHUB_CLIENT_ID").unwrap_or("");
+    if client_id.is_empty() {
         return Err("GitHub Client ID is missing or invalid in configuration.".to_string());
     }
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|_| "Failed to build HTTP client.".to_string())?;
     let res = client.post(GITHUB_DEVICE_CODE_URL)
         .header("Accept", "application/json")
         .query(&[
-            ("client_id", &client_id),
-            ("scope", &"repo".to_string())
+            ("client_id", client_id),
+            ("scope", "repo"),
         ])
         .send()
         .await
@@ -48,18 +51,21 @@ pub async fn start_github_device_flow() -> Result<DeviceAuthResponse, String> {
 
 #[tauri::command]
 pub async fn poll_github_token(device_code: String) -> Result<TokenResponse, String> {
-    let client_id = std::env::var("GITHUB_CLIENT_ID").unwrap_or_default();
-    if client_id.is_empty() || client_id == "your_sandbox_client_id_here" {
+    let client_id = option_env!("GITHUB_CLIENT_ID").unwrap_or("");
+    if client_id.is_empty() {
         return Err("GitHub Client ID is missing or invalid in configuration.".to_string());
     }
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|_| "Failed to build HTTP client.".to_string())?;
     let res = client.post(GITHUB_OAUTH_TOKEN_URL)
         .header("Accept", "application/json")
         .query(&[
-            ("client_id", &client_id),
-            ("device_code", &device_code),
-            ("grant_type", &"urn:ietf:params:oauth:grant-type:device_code".to_string()),
+            ("client_id", client_id),
+            ("device_code", device_code.as_str()),
+            ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
         ])
         .send()
         .await
