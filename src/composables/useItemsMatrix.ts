@@ -25,7 +25,7 @@ export interface RepositoryItem {
 }
 
 export interface Project {
-  id: number
+  id: number | null
   path: string
   agentIds: string[]
 }
@@ -58,7 +58,8 @@ export function useItemsMatrix(folder: ItemFolder) {
     return parts.length > 0 ? parts[parts.length - 1] : 'New Project'
   }
 
-  function isSelected(itemId: string, projectId: number): boolean {
+  function isSelected(itemId: string, projectId: number | null): boolean {
+    if (projectId === null) return false
     return selectionMatrix.value[itemId]?.has(projectId) || false
   }
 
@@ -129,7 +130,8 @@ export function useItemsMatrix(folder: ItemFolder) {
     }
   }
 
-  async function toggleSelection(itemId: string, projectId: number) {
+  async function toggleSelection(itemId: string, projectId: number | null) {
+    if (projectId === null) return
     if (!selectionMatrix.value[itemId]) selectionMatrix.value[itemId] = new Set()
     const wasSelected = selectionMatrix.value[itemId].has(projectId)
     if (wasSelected) {
@@ -156,7 +158,7 @@ export function useItemsMatrix(folder: ItemFolder) {
     let updated = false
 
     for (const project of projects.value) {
-      if (!project.path || !project.agentIds?.length) continue
+      if (!project.path || !project.agentIds?.length || project.id === null) continue
 
       const agentPaths = new Set<string>()
       for (const agentId of project.agentIds) {
@@ -205,7 +207,7 @@ export function useItemsMatrix(folder: ItemFolder) {
       const selectedProjectIds = selectionMatrix.value[item.id] || new Set()
 
       for (const project of projects.value) {
-        if (!project.path) continue
+        if (!project.path || project.id === null) continue
 
         const itemIsSelected = selectedProjectIds.has(project.id)
 
