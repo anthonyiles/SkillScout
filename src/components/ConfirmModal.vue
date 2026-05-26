@@ -32,6 +32,7 @@ watch(() => props.isOpen, (isOpen) => {
 </script>
 
 <template>
+  <Teleport to="body">
   <div
     v-if="isOpen"
     class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000] flex items-center justify-center"
@@ -58,4 +59,5 @@ watch(() => props.isOpen, (isOpen) => {
       </div>
     </div>
   </div>
+  </Teleport>
 </template>

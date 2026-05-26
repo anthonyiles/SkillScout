@@ -441,3 +441,140 @@ pub fn get_project_files(project_path: String, sub_folders: Vec<String>) -> Vec<
     files.dedup();
     files
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── is_safe_filename ────────────────────────────────────────────────────
+
+    #[test]
+    fn safe_filename_accepts_plain_name() {
+        assert!(is_safe_filename("my-skill.md"));
+    }
+
+    #[test]
+    fn safe_filename_accepts_name_with_extension() {
+        assert!(is_safe_filename("rule.mdc"));
+    }
+
+    #[test]
+    fn safe_filename_rejects_parent_dir_component() {
+        assert!(!is_safe_filename("../etc/passwd"));
+    }
+
+    #[test]
+    fn safe_filename_rejects_double_dot_only() {
+        assert!(!is_safe_filename(".."));
+    }
+
+    #[test]
+    fn safe_filename_rejects_absolute_unix_path() {
+        assert!(!is_safe_filename("/etc/passwd"));
+    }
+
+    #[test]
+    fn safe_filename_rejects_embedded_traversal() {
+        assert!(!is_safe_filename("foo/../../secret"));
+    }
+
+    #[test]
+    fn safe_filename_accepts_subdirectory_name() {
+        assert!(is_safe_filename("skills/my-skill.md"));
+    }
+
+    // ── validate_repo_url ───────────────────────────────────────────────────
+
+    #[test]
+    fn validate_accepts_https_github_url() {
+        assert!(validate_repo_url("https://github.com/org/repo").is_ok());
+    }
+
+    #[test]
+    fn validate_accepts_https_url_with_git_suffix() {
+        assert!(validate_repo_url("https://github.com/org/repo.git").is_ok());
+    }
+
+    #[test]
+    fn validate_accepts_ssh_github_url() {
+        assert!(validate_repo_url("git@github.com:org/repo").is_ok());
+    }
+
+    #[test]
+    fn validate_accepts_ssh_url_with_git_suffix() {
+        assert!(validate_repo_url("git@github.com:org/repo.git").is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_non_github_https_url() {
+        assert!(validate_repo_url("https://gitlab.com/org/repo").is_err());
+    }
+
+    #[test]
+    fn validate_rejects_bare_github_domain() {
+        assert!(validate_repo_url("https://github.com/org").is_err());
+    }
+
+    #[test]
+    fn validate_rejects_url_with_semicolon() {
+        assert!(validate_repo_url("https://github.com/org/repo;rm -rf /").is_err());
+    }
+
+    #[test]
+    fn validate_rejects_url_with_backtick() {
+        assert!(validate_repo_url("https://github.com/org/`id`").is_err());
+    }
+
+    #[test]
+    fn validate_rejects_empty_string() {
+        assert!(validate_repo_url("").is_err());
+    }
+
+    // ── canonical_repo_url ──────────────────────────────────────────────────
+
+    #[test]
+    fn canonical_strips_git_suffix() {
+        assert_eq!(
+            canonical_repo_url("https://github.com/org/repo.git"),
+            "https://github.com/org/repo"
+        );
+    }
+
+    #[test]
+    fn canonical_strips_trailing_slash() {
+        assert_eq!(
+            canonical_repo_url("https://github.com/org/repo/"),
+            "https://github.com/org/repo"
+        );
+    }
+
+    #[test]
+    fn canonical_trims_leading_whitespace() {
+        assert_eq!(
+            canonical_repo_url("  https://github.com/org/repo"),
+            "https://github.com/org/repo"
+        );
+    }
+
+    #[test]
+    fn canonical_leaves_clean_url_unchanged() {
+        assert_eq!(
+            canonical_repo_url("https://github.com/org/repo"),
+            "https://github.com/org/repo"
+        );
+    }
+
+    // ── sha256 hashing ──────────────────────────────────────────────────────
+
+    #[test]
+    fn sha256_of_known_content_is_stable() {
+        use sha2::{Sha256, Digest};
+        let mut hasher = Sha256::new();
+        hasher.update(b"hello");
+        let result = hex::encode(hasher.finalize());
+        assert_eq!(
+            result,
+            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+        );
+    }
+}
