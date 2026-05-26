@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { useToast } from '../composables/useToast'
 import { formatError } from '../utils/formatError'
+import { getAgents, saveAgent, deleteAgent, resetAgentsToDefaults } from '../api'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import BaseButton from '../components/BaseButton.vue'
 import InputField from '../components/InputField.vue'
@@ -22,7 +22,7 @@ const { success, error } = useToast()
 
 async function loadAgents() {
   try {
-    const fetched = await invoke<Agent[]>('get_agents')
+    const fetched = await getAgents()
     if (fetched) {
       agents.value = fetched
     }
@@ -39,7 +39,7 @@ async function saveConfig() {
   saving.value = true
   try {
     for (const agent of agents.value) {
-      await invoke('save_agent', { agent })
+      await saveAgent(agent)
     }
     success('Agent configurations saved successfully!')
   } catch (err: unknown) {
@@ -61,7 +61,7 @@ function addAgent() {
 
 async function removeAgent(id: string) {
   try {
-    await invoke('delete_agent', { id })
+    await deleteAgent(id)
     agents.value = agents.value.filter(agent => agent.id !== id)
     success('Agent removed.')
   } catch {
@@ -79,7 +79,7 @@ async function executeReset() {
   if (saving.value) return
   saving.value = true
   try {
-    await invoke('reset_agents_to_defaults')
+    await resetAgentsToDefaults()
     await loadAgents()
     success('Restored default agents.')
   } catch (err) {
