@@ -89,6 +89,18 @@ export function getAgents(): Promise<Agent[]> {
   return invoke('get_agents')
 }
 
+export function saveAgent(agent: Agent): Promise<void> {
+  return invoke('save_agent', { agent })
+}
+
+export function deleteAgent(id: string): Promise<void> {
+  return invoke('delete_agent', { id })
+}
+
+export function resetAgentsToDefaults(): Promise<void> {
+  return invoke('reset_agents_to_defaults')
+}
+
 // Repository items
 
 export function getRepositoryItems(folder?: string): Promise<RepositoryItem[]> {

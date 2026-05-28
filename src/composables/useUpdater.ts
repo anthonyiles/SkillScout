@@ -1,4 +1,4 @@
-import { check } from '@tauri-apps/plugin-updater'
+import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { ref } from 'vue'
 import { createSharedComposable } from '@vueuse/core'
@@ -17,14 +17,18 @@ export const useUpdater = createSharedComposable(() => {
   const installing = ref(false)
   const installPercent = ref<number | null>(null)
 
+  let pendingUpdate: Update | null = null
+
   async function checkForUpdate() {
     if (checking.value) return
     checking.value = true
     try {
       const update = await check()
       if (update?.available) {
+        pendingUpdate = update
         updateAvailable.value = { version: update.version, notes: update.body ?? null }
       } else {
+        pendingUpdate = null
         updateAvailable.value = null
       }
     } catch (e) {
@@ -41,8 +45,9 @@ export const useUpdater = createSharedComposable(() => {
     installPercent.value = null
 
     try {
-      const update = await check()
+      const update = pendingUpdate ?? await check()
       if (!update?.available) {
+        pendingUpdate = null
         updateAvailable.value = null
         return
       }
@@ -55,8 +60,8 @@ export const useUpdater = createSharedComposable(() => {
           totalLength = event.data.contentLength
         } else if (event.event === 'Progress') {
           downloaded += event.data.chunkLength
-          if (totalLength) {
-            installPercent.value = Math.round((downloaded / totalLength) * 100)
+          if (totalLength && totalLength > 0) {
+            installPercent.value = Math.min(100, Math.round((downloaded / totalLength) * 100))
           }
         }
       })
