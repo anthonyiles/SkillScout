@@ -1,0 +1,10 @@
+{
+  "name": "skillscout-update",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-28",
+  "vars": {
+    "GITHUB_REPO": "anthonyiles/SkillScout"
+  }
+  // Store the GitHub token as a secret (never in this file):
+  // wrangler secret put GITHUB_TOKEN
+}

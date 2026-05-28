@@ -15,5 +15,15 @@
   ],
   "packages": {
     ".": {}
-  }
+  },
+  "branches": [
+    {
+      "branch": "master"
+    },
+    {
+      "branch": "beta",
+      "prerelease": true,
+      "tag-component": "beta"
+    }
+  ]
 }

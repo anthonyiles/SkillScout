@@ -44,6 +44,8 @@ async function saveConfig() {
     success('Agent configurations saved successfully!')
   } catch (err: unknown) {
     error(formatError(err, 'Failed to save agents'))
+    // Reload from DB so the view reflects what was actually persisted
+    await loadAgents()
   } finally {
     saving.value = false
   }

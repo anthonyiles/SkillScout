@@ -80,6 +80,18 @@ pub(crate) fn db_reset_agents(conn: &mut Connection) -> Result<(), String> {
     let tx = conn.transaction()
         .map_err(|e| { eprintln!("Failed to begin transaction: {}", e); "Database busy".to_string() })?;
 
+    // Preserve project→agent associations for the default agent IDs so that
+    // projects do not lose their assignments after a reset.
+    let mut stmt = tx.prepare(
+        "SELECT project_id, agent_id FROM project_agents WHERE agent_id IN ('cursor','jetbrains','claude')"
+    ).map_err(|e| { eprintln!("Failed to read project_agents: {}", e); "Failed to reset agents".to_string() })?;
+    let preserved: Vec<(i64, String)> = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| { eprintln!("Failed to query project_agents: {}", e); "Failed to reset agents".to_string() })?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| { eprintln!("Corrupt project_agents row: {}", e); "Failed to reset agents".to_string() })?;
+    drop(stmt);
+
     tx.execute("DELETE FROM agents", [])
         .map_err(|e| { eprintln!("Failed to clear agents: {}", e); "Failed to reset agents".to_string() })?;
     tx.execute_batch("
@@ -88,6 +100,13 @@ pub(crate) fn db_reset_agents(conn: &mut Connection) -> Result<(), String> {
             ('jetbrains', 'JetBrains AI', '.agents/skills', '.agents/rules'),
             ('claude', 'Claude Code', '.claude/skills', '.claude/rules');
     ").map_err(|e| { eprintln!("Failed to seed agents: {}", e); "Failed to reset agents".to_string() })?;
+
+    for (project_id, agent_id) in preserved {
+        tx.execute(
+            "INSERT OR IGNORE INTO project_agents (project_id, agent_id) VALUES (?1, ?2)",
+            params![project_id, agent_id],
+        ).map_err(|e| { eprintln!("Failed to restore project_agents: {}", e); "Failed to reset agents".to_string() })?;
+    }
 
     tx.commit().map_err(|e| { eprintln!("Failed to commit reset: {}", e); "Failed to save changes".to_string() })?;
     Ok(())
