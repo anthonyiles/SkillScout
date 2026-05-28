@@ -5,12 +5,6 @@ export interface Agent {
   rulesPath: string
 }
 
-export interface Project {
-  id: string
-  path: string
-  agentIds: string[]
-}
-
 export interface Skill {
   id: string
   name: string

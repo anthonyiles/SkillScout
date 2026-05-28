@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { getAgents, saveAgent, deleteAgent, resetAgentsToDefaults } from '../api'
-import type { Agent } from '../types'
 import { useToast } from '../composables/useToast'
 import { formatError } from '../utils/formatError'
+import { getAgents, saveAgent, deleteAgent, resetAgentsToDefaults } from '../api'
+import type { Agent } from '../types'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import BaseButton from '../components/BaseButton.vue'
 import InputField from '../components/InputField.vue'
@@ -35,6 +35,8 @@ async function saveConfig() {
     success('Agent configurations saved successfully!')
   } catch (err: unknown) {
     error(formatError(err, 'Failed to save agents'))
+    // Reload from DB so the view reflects what was actually persisted
+    await loadAgents()
   } finally {
     saving.value = false
   }

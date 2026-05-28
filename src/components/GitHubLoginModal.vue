@@ -108,6 +108,7 @@ onBeforeUnmount(() => { deactivate(); stopPolling() })
 </script>
 
 <template>
+  <Teleport to="body">
   <div v-if="isOpen" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center" @click.self="close">
     <div
       ref="modalRef"
@@ -174,4 +175,5 @@ onBeforeUnmount(() => { deactivate(); stopPolling() })
       </div>
     </div>
   </div>
+  </Teleport>
 </template>

@@ -61,7 +61,7 @@ function openPreview(skill: RepositoryItem) {
         <thead>
           <tr>
             <th class="py-2 px-4 border-b border-divider font-semibold text-muted bg-black/20 whitespace-nowrap w-[40%]">Skill</th>
-            <th v-for="project in projects" :key="project.id" class="py-2 px-4 border-b border-divider font-semibold text-muted bg-black/20 whitespace-nowrap text-center w-[150px]">
+            <th v-for="project in projects" :key="project.id ?? project.path" class="py-2 px-4 border-b border-divider font-semibold text-muted bg-black/20 whitespace-nowrap text-center w-[150px]">
               {{ getProjectName(project.path) }}
             </th>
             <th v-if="projects.length === 0" class="py-2 px-4 border-b border-divider font-semibold text-muted bg-black/20 whitespace-nowrap text-center w-[150px]">
@@ -79,7 +79,7 @@ function openPreview(skill: RepositoryItem) {
                 </BaseButton>
               </div>
             </td>
-            <td v-for="project in projects" :key="project.id" class="py-2 px-4 border-b border-divider text-center">
+            <td v-for="project in projects" :key="project.id ?? project.path" class="py-2 px-4 border-b border-divider text-center">
               <TickBox
                 :checked="isSelected(skill.id, project.id)"
                 @change="toggleSelection(skill.id, project.id)"
