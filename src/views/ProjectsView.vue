@@ -80,7 +80,7 @@ function addProject() {
 }
 
 async function removeProject(project: Project) {
-  if (project.id) {
+  if (project.id !== null) {
     try {
       await deleteProject(project.id)
     } catch (err) {

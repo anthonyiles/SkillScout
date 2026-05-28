@@ -1,4 +1,4 @@
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use std::sync::Mutex;
 use tauri::AppHandle;
 use tauri::Manager;
@@ -80,20 +80,25 @@ pub(crate) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
         "
     )?;
 
-    // Migration for column added after initial schema
-    conn.execute("ALTER TABLE promoted_items ADD COLUMN sub_folder TEXT", []).ok();
+    // Migration for column added after initial schema; ignore only "duplicate column" errors
+    // which mean the column already exists from a previous run.
+    match conn.execute("ALTER TABLE promoted_items ADD COLUMN sub_folder TEXT", []) {
+        Ok(_) => {}
+        Err(rusqlite::Error::SqliteFailure(_, Some(ref msg))) if msg.contains("duplicate column") => {}
+        Err(e) => return Err(e),
+    }
 
     Ok(())
 }
 
 pub(crate) fn seed_defaults(conn: &Connection) -> rusqlite::Result<()> {
-    let is_first_run: rusqlite::Result<String> = conn.query_row(
+    let is_initialized: Option<String> = conn.query_row(
         "SELECT value FROM settings WHERE key = 'initialized_defaults'",
         [],
         |row| row.get(0),
-    );
+    ).optional()?;
 
-    if is_first_run.is_err() {
+    if is_initialized.is_none() {
         conn.execute_batch("
             INSERT OR IGNORE INTO agents (id, name, skills_path, rules_path) VALUES
                 ('cursor', 'Cursor', '.cursor/skills', '.cursor/rules'),
