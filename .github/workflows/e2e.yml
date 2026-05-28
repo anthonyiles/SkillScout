@@ -1,9 +1,12 @@
 name: E2E Tests
 
-# Triggered manually or automatically on release tags.
-# E2E requires a full Tauri build, which is expensive; it does not run on every PR.
+# Runs on PRs into beta (the gate before a beta release), on release tags,
+# and can be triggered manually. E2E requires a full Tauri build so it is
+# intentionally kept off the develop→develop PR loop.
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [beta]
   push:
     tags:
       - 'v*'

@@ -183,8 +183,15 @@ export function useItemsMatrix(folder: ItemFolder) {
             } else {
               selectionMatrix.value[item.id].delete(project.id)
             }
-            await toggleItemSelection(item.id, project.id)
-            updated = true
+            try {
+              await toggleItemSelection(item.id, project.id)
+              updated = true
+            } catch (err) {
+              // Rollback optimistic matrix change
+              if (wasSelected) selectionMatrix.value[item.id].add(project.id)
+              else selectionMatrix.value[item.id].delete(project.id)
+              error(formatError(err, 'Failed to update selection'))
+            }
           }
         }
       } catch (err: unknown) {

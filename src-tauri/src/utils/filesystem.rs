@@ -27,6 +27,8 @@ pub(crate) fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std:
     let src_path = src.as_ref();
     let dst_path = dst.as_ref();
 
+    // Self-copy guard: skip if canonicalize fails (e.g. transient OS lock) rather than
+    // aborting the entire copy — the guard is best-effort, not a hard correctness requirement.
     if let Ok(src_canon) = fs::canonicalize(src_path) {
         let dst_canon = resolve_path(dst_path);
         if dst_canon.starts_with(&src_canon) {
