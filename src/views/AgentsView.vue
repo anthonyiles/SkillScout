@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { getAgents, saveAgent, deleteAgent, resetAgentsToDefaults } from '../api'
+import type { Agent } from '../types'
 import { useToast } from '../composables/useToast'
 import { formatError } from '../utils/formatError'
 import ConfirmModal from '../components/ConfirmModal.vue'
@@ -9,25 +10,15 @@ import InputField from '../components/InputField.vue'
 import PageLayout from '../components/PageLayout.vue'
 import CardItem from '../components/CardItem.vue'
 
-interface Agent {
-  id: string
-  name: string
-  skillsPath: string
-  rulesPath: string
-}
-
 const agents = ref<Agent[]>([])
 const saving = ref(false)
 const { success, error } = useToast()
 
 async function loadAgents() {
   try {
-    const fetched = await invoke<Agent[]>('get_agents')
-    if (fetched) {
-      agents.value = fetched
-    }
+    agents.value = await getAgents()
   } catch (err) {
-    console.error('Failed to load agents:', err)
+    error(formatError(err, 'Failed to load agents'))
   }
 }
 
@@ -39,7 +30,7 @@ async function saveConfig() {
   saving.value = true
   try {
     for (const agent of agents.value) {
-      await invoke('save_agent', { agent })
+      await saveAgent(agent)
     }
     success('Agent configurations saved successfully!')
   } catch (err: unknown) {
@@ -61,11 +52,11 @@ function addAgent() {
 
 async function removeAgent(id: string) {
   try {
-    await invoke('delete_agent', { id })
+    await deleteAgent(id)
     agents.value = agents.value.filter(agent => agent.id !== id)
     success('Agent removed.')
-  } catch {
-    error('Failed to remove agent')
+  } catch (err) {
+    error(formatError(err, 'Failed to remove agent'))
   }
 }
 
@@ -79,7 +70,7 @@ async function executeReset() {
   if (saving.value) return
   saving.value = true
   try {
-    await invoke('reset_agents_to_defaults')
+    await resetAgentsToDefaults()
     await loadAgents()
     success('Restored default agents.')
   } catch (err) {

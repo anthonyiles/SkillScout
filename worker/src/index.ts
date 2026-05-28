@@ -43,8 +43,39 @@ const JSON_HEADERS = {
   'Access-Control-Allow-Origin': '*',
 }
 
+// No-update responses must not be cached — a release could be published at any moment
+const NO_UPDATE_HEADERS = {
+  'Cache-Control': 'no-store',
+  'Access-Control-Allow-Origin': '*',
+}
+
+async function fetchRelease(repo: string, channel: string, githubHeaders: Record<string, string>): Promise<GitHubRelease | null> {
+  if (channel === 'beta') {
+    // Beta: pick the most recent non-draft release (prereleases included)
+    const res = await fetch(
+      `https://api.github.com/repos/${repo}/releases?per_page=10`,
+      { headers: githubHeaders },
+    )
+    if (!res.ok) throw new Error(`GitHub API error: ${res.status}`)
+    const releases = await res.json() as GitHubRelease[]
+    return releases.find(r => !r.draft) ?? null
+  } else {
+    // Stable: /releases/latest only returns non-prerelease, non-draft releases
+    const res = await fetch(
+      `https://api.github.com/repos/${repo}/releases/latest`,
+      { headers: githubHeaders },
+    )
+    if (!res.ok) throw new Error(`GitHub API error: ${res.status}`)
+    const release = await res.json() as GitHubRelease
+    if (release.draft || release.prerelease) return null
+    return release
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const channel = new URL(request.url).searchParams.get('channel') ?? 'stable'
+
     const githubHeaders: Record<string, string> = {
       Accept: 'application/vnd.github+json',
       'User-Agent': 'SkillScout-Updater/1.0',
@@ -54,19 +85,9 @@ export default {
       githubHeaders['Authorization'] = `Bearer ${env.GITHUB_TOKEN}`
     }
 
-    let release: GitHubRelease
+    let release: GitHubRelease | null
     try {
-      const res = await fetch(
-        `https://api.github.com/repos/${env.GITHUB_REPO}/releases/latest`,
-        { headers: githubHeaders },
-      )
-      if (!res.ok) {
-        return new Response(
-          JSON.stringify({ error: `GitHub API error: ${res.status}` }),
-          { status: 502, headers: JSON_HEADERS },
-        )
-      }
-      release = await res.json() as GitHubRelease
+      release = await fetchRelease(env.GITHUB_REPO, channel, githubHeaders)
     } catch (e) {
       return new Response(
         JSON.stringify({ error: 'Failed to reach GitHub API', detail: String(e) }),
@@ -74,9 +95,9 @@ export default {
       )
     }
 
-    if (release.draft || release.prerelease) {
+    if (!release) {
       // 204 tells Tauri's updater there is no update available
-      return new Response(null, { status: 204, headers: JSON_HEADERS })
+      return new Response(null, { status: 204, headers: NO_UPDATE_HEADERS })
     }
 
     const version = release.tag_name.replace(/^v/, '')
@@ -105,7 +126,7 @@ export default {
 
     if (Object.keys(platforms).length === 0) {
       // Release exists but has no updater assets — no update to offer
-      return new Response(null, { status: 204, headers: JSON_HEADERS })
+      return new Response(null, { status: 204, headers: NO_UPDATE_HEADERS })
     }
 
     const manifest: UpdateManifest = {

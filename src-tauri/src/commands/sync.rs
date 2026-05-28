@@ -260,10 +260,21 @@ fn is_safe_filename(name: &str) -> bool {
     !path.components().any(|c| matches!(c, std::path::Component::ParentDir | std::path::Component::RootDir | std::path::Component::Prefix(_)))
 }
 
+fn is_safe_absolute_path(path_str: &str) -> bool {
+    let path = Path::new(path_str);
+    if !path.is_absolute() {
+        return false;
+    }
+    !path.components().any(|c| matches!(c, std::path::Component::ParentDir))
+}
+
 #[tauri::command]
 pub fn check_existing(tasks: Vec<SyncTask>) -> Result<Vec<String>, String> {
     let mut existing = Vec::new();
     for task in tasks {
+        if !is_safe_absolute_path(&task.target_dir) {
+            return Err(SkillScoutError::PathTraversalAttempt.to_string());
+        }
         if !is_safe_filename(&task.file_name) {
             return Err(SkillScoutError::PathTraversalAttempt.to_string());
         }
@@ -280,6 +291,9 @@ pub async fn apply_skills(tasks: Vec<SyncTask>) -> Result<usize, String> {
     let count = tauri::async_runtime::spawn_blocking(move || {
         let mut count = 0;
         for task in tasks {
+            if !is_safe_absolute_path(&task.target_dir) {
+                return Err(SkillScoutError::PathTraversalAttempt.to_string());
+            }
             if !is_safe_filename(&task.file_name) {
                 return Err(SkillScoutError::PathTraversalAttempt.to_string());
             }
