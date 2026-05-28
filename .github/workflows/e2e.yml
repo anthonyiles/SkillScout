@@ -1,0 +1,83 @@
+name: E2E Tests
+
+# Runs on PRs into beta (the gate before a beta release), on release tags,
+# and can be triggered manually. E2E requires a full Tauri build so it is
+# intentionally kept off the develop→develop PR loop.
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [beta]
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: E2E (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            display: xvfb-run --auto-servernum
+          - os: macos-latest
+            display: ''
+          - os: windows-latest
+            display: ''
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Linux system dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            xvfb
+
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: Install tauri-driver
+        run: cargo install tauri-driver
+
+      - name: Install E2E test dependencies
+        run: |
+          npm install --no-save \
+            @wdio/cli@^9 \
+            @wdio/local-runner@^9 \
+            @wdio/mocha-framework@^9 \
+            @wdio/spec-reporter@^9 \
+            wdio-chromedriver-service@^8 \
+            webdriverio@^9
+
+      - name: Build Tauri app (release)
+        env:
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+        run: npm run tauri build
+
+      - name: Run E2E tests
+        env:
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+        run: ${{ matrix.display }} npx wdio run tests/e2e/wdio.conf.ts
