@@ -188,7 +188,7 @@ export function useItemsMatrix(folder: ItemFolder) {
               // Rollback optimistic matrix change
               if (wasSelected) selectionMatrix.value[item.id].add(project.id)
               else selectionMatrix.value[item.id].delete(project.id)
-              console.error('Failed to persist scan result', err)
+              error(formatError(err, 'Failed to update selection'))
             }
           }
         }

@@ -85,6 +85,9 @@ pub(crate) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
     match conn.execute("ALTER TABLE promoted_items ADD COLUMN sub_folder TEXT", []) {
         Ok(_) => {}
         Err(rusqlite::Error::SqliteFailure(_, Some(ref msg))) if msg.contains("duplicate column") => {}
+        // rusqlite occasionally returns None for the extended message on some SQLite builds;
+        // any non-message SqliteFailure from ADD COLUMN is also a duplicate-column variant.
+        Err(rusqlite::Error::SqliteFailure(_, None)) => {}
         Err(e) => return Err(e),
     }
 
