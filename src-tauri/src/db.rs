@@ -1,4 +1,4 @@
-use rusqlite::{Connection, OptionalExtension};
+use rusqlite::Connection;
 use std::sync::Mutex;
 use tauri::AppHandle;
 use tauri::Manager;
@@ -95,13 +95,13 @@ pub(crate) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
 }
 
 pub(crate) fn seed_defaults(conn: &Connection) -> rusqlite::Result<()> {
-    let is_initialized: Option<String> = conn.query_row(
+    let is_first_run: rusqlite::Result<String> = conn.query_row(
         "SELECT value FROM settings WHERE key = 'initialized_defaults'",
         [],
         |row| row.get(0),
-    ).optional()?;
+    );
 
-    if is_initialized.is_none() {
+    if is_first_run.is_err() {
         conn.execute_batch("
             INSERT OR IGNORE INTO agents (id, name, skills_path, rules_path) VALUES
                 ('cursor', 'Cursor', '.cursor/skills', '.cursor/rules'),

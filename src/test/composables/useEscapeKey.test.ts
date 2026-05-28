@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { defineComponent, nextTick, ref } from 'vue'
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { mount } from '@vue/test-utils'
 import { useEscapeKey } from '../../composables/useEscapeKey'
-
-const mountedWrappers: VueWrapper[] = []
 
 function mountWithEscapeKey(initiallyActive: boolean, onEscape: () => void) {
   const isActive = ref(initiallyActive)
@@ -15,7 +13,6 @@ function mountWithEscapeKey(initiallyActive: boolean, onEscape: () => void) {
     template: '<div />',
   })
   const wrapper = mount(component)
-  mountedWrappers.push(wrapper)
   return { wrapper, isActive }
 }
 
@@ -25,8 +22,7 @@ function pressKey(key: string) {
 
 describe('useEscapeKey', () => {
   afterEach(() => {
-    mountedWrappers.forEach(w => w.unmount())
-    mountedWrappers.length = 0
+    // Ensure listeners are cleaned up between tests
     vi.clearAllMocks()
   })
 

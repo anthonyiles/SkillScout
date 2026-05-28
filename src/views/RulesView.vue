@@ -54,7 +54,7 @@ function openPreview(rule: RepositoryItem) {
         <thead>
           <tr>
             <th class="py-2 px-4 border-b border-divider font-semibold text-muted bg-black/20 whitespace-nowrap w-[40%]">Rule</th>
-            <th v-for="project in projects" :key="project.id" class="py-2 px-4 border-b border-divider font-semibold text-muted bg-black/20 whitespace-nowrap text-center w-[150px]">
+            <th v-for="project in projects" :key="project.id ?? project.path" class="py-2 px-4 border-b border-divider font-semibold text-muted bg-black/20 whitespace-nowrap text-center w-[150px]">
               {{ getProjectName(project.path) }}
             </th>
             <th v-if="projects.length === 0" class="py-2 px-4 border-b border-divider font-semibold text-muted bg-black/20 whitespace-nowrap text-center w-[150px]">
@@ -72,7 +72,7 @@ function openPreview(rule: RepositoryItem) {
                 </BaseButton>
               </div>
             </td>
-            <td v-for="project in projects" :key="project.id" class="py-2 px-4 border-b border-divider text-center">
+            <td v-for="project in projects" :key="project.id ?? project.path" class="py-2 px-4 border-b border-divider text-center">
               <TickBox
                 :checked="isSelected(rule.id, project.id)"
                 @change="toggleSelection(rule.id, project.id)"

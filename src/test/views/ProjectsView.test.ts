@@ -8,6 +8,9 @@ vi.mock('../../api', () => ({
   saveProject: vi.fn(),
   deleteProject: vi.fn(),
   getAgents: vi.fn(),
+  getRepositoryItems: vi.fn(),
+  getItemSelections: vi.fn(),
+  applySkills: vi.fn(),
 }))
 
 vi.mock('../../components/PageLayout.vue', () => ({
@@ -58,6 +61,9 @@ describe('ProjectsView', () => {
     vi.mocked(api.getAgents).mockResolvedValue(mockAgents)
     vi.mocked(api.saveProject).mockResolvedValue({ id: 1, path: '/home/user/alpha', agentIds: ['cursor'] })
     vi.mocked(api.deleteProject).mockResolvedValue(undefined)
+    vi.mocked(api.getRepositoryItems).mockResolvedValue([])
+    vi.mocked(api.getItemSelections).mockResolvedValue([])
+    vi.mocked(api.applySkills).mockResolvedValue(0)
   })
 
   it('loads projects and agents on mount', async () => {
