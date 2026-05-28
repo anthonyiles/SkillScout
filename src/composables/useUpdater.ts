@@ -1,4 +1,4 @@
-import { check, type Update } from '@tauri-apps/plugin-updater'
+import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { ref } from 'vue'
 import { createSharedComposable } from '@vueuse/core'
@@ -17,18 +17,14 @@ export const useUpdater = createSharedComposable(() => {
   const installing = ref(false)
   const installPercent = ref<number | null>(null)
 
-  let pendingUpdate: Update | null = null
-
   async function checkForUpdate() {
     if (checking.value) return
     checking.value = true
     try {
       const update = await check()
       if (update?.available) {
-        pendingUpdate = update
         updateAvailable.value = { version: update.version, notes: update.body ?? null }
       } else {
-        pendingUpdate = null
         updateAvailable.value = null
       }
     } catch (e) {
@@ -45,9 +41,10 @@ export const useUpdater = createSharedComposable(() => {
     installPercent.value = null
 
     try {
-      const update = pendingUpdate ?? await check()
+      // Always re-check to guarantee the freshest available version is installed,
+      // not the one cached when the app launched hours ago.
+      const update = await check()
       if (!update?.available) {
-        pendingUpdate = null
         updateAvailable.value = null
         return
       }
