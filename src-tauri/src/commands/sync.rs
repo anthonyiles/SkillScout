@@ -345,6 +345,9 @@ pub async fn apply_skills(tasks: Vec<SyncTask>) -> Result<usize, String> {
 
 #[tauri::command]
 pub fn get_project_file_hashes(project_path: String, sub_folders: Vec<String>) -> Result<Vec<FileHash>, String> {
+    if !is_safe_absolute_path(&project_path) {
+        return Err(SkillScoutError::PathTraversalAttempt.to_string());
+    }
     let mut hashes: Vec<FileHash> = Vec::new();
     let base_path = Path::new(&project_path);
 
@@ -421,6 +424,9 @@ pub fn get_project_file_hashes(project_path: String, sub_folders: Vec<String>) -
 
 #[tauri::command]
 pub fn get_project_files(project_path: String, sub_folders: Vec<String>) -> Result<Vec<String>, String> {
+    if !is_safe_absolute_path(&project_path) {
+        return Err(SkillScoutError::PathTraversalAttempt.to_string());
+    }
     let mut files = Vec::new();
     let base_path = Path::new(&project_path);
 

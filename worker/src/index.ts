@@ -60,11 +60,13 @@ async function fetchRelease(repo: string, channel: string, githubHeaders: Record
     const releases = await res.json() as GitHubRelease[]
     return releases.find(r => !r.draft) ?? null
   } else {
-    // Stable: /releases/latest only returns non-prerelease, non-draft releases
+    // Stable: /releases/latest only returns non-prerelease, non-draft releases.
+    // GitHub returns 404 when no stable release exists yet — treat that as no update.
     const res = await fetch(
       `https://api.github.com/repos/${repo}/releases/latest`,
       { headers: githubHeaders },
     )
+    if (res.status === 404) return null
     if (!res.ok) throw new Error(`GitHub API error: ${res.status}`)
     const release = await res.json() as GitHubRelease
     if (release.draft || release.prerelease) return null
