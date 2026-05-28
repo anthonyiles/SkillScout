@@ -10,7 +10,7 @@ const defaultProps = {
 
 describe('ConfirmModal', () => {
   const wrappers: VueWrapper[] = []
-  const mountModal = (props = defaultProps) => {
+  const mountModal = (props: typeof defaultProps & { confirmText?: string; cancelText?: string; danger?: boolean } = defaultProps) => {
     const w = mount(ConfirmModal, { props })
     wrappers.push(w)
     return w
