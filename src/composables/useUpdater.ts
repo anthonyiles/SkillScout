@@ -39,7 +39,7 @@ export const useUpdater = createSharedComposable(() => {
     try {
       await loadChannel()
       const update = await check(channelHeaders())
-      if (update?.available) {
+      if (update) {
         updateAvailable.value = { version: update.version, notes: update.body ?? null }
       } else {
         updateAvailable.value = null
@@ -61,7 +61,7 @@ export const useUpdater = createSharedComposable(() => {
       // Always re-check to guarantee the freshest available version is installed,
       // not the one cached when the app launched hours ago.
       const update = await check(channelHeaders())
-      if (!update?.available) {
+      if (!update) {
         updateAvailable.value = null
         return
       }
