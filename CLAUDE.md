@@ -17,6 +17,15 @@ npm run tauri dev      # Run the full desktop app in dev mode (starts Vite + Tau
 npm run dev            # Start Vite frontend only (port 1420, no Tauri shell)
 ```
 
+### Testing
+```bash
+npm test               # Run Vitest in watch mode
+npm run test:run       # Run Vitest once (CI mode)
+npm run coverage       # Run Vitest with V8 coverage report
+```
+
+Frontend tests live in `src/test/` (mirroring the `src/` structure). The test setup at `src/test/setup.ts` globally mocks `@tauri-apps/api/core` (`invoke`) and `@tauri-apps/api/event` (`listen`/`emit`), and stubs `<Teleport>` to render slots inline.
+
 ### Building
 ```bash
 npm run build          # TypeScript check + Vite build
@@ -30,6 +39,12 @@ cargo test             # Run Rust tests
 cargo check            # Type-check without building
 ```
 
+### Cloudflare Worker (run inside `worker/`)
+```bash
+npm run dev            # Local dev server via wrangler
+npm run deploy         # Deploy to Cloudflare Workers
+```
+
 ## Architecture
 
 ### IPC Boundary
@@ -39,7 +54,8 @@ The frontend communicates with the Rust backend exclusively via `invoke()` from 
 ### Rust Backend (`src-tauri/src/`)
 
 - **`lib.rs`** — App entry point: initializes SQLite, registers all Tauri commands, starts the 30-minute background sync loop.
-- **`db.rs`** — Opens/creates the SQLite database in the Tauri app data dir (`app_state.db`), creates tables, seeds default agents. `AppState { db: Mutex<Connection> }` is stored as managed Tauri state.
+- **`db.rs`** — Opens/creates the SQLite database in the Tauri app data dir (`app_state.db`), creates tables, seeds default agents. `AppState { db: Mutex<Connection> }` is stored as managed Tauri state. Use `state.lock_conn()` (not `state.db.lock().unwrap()`) — it recovers from a poisoned mutex.
+- **`error.rs`** — `SkillScoutError` enum: the crate's typed error. Implement `From<T>` for foreign error types here; use `?` to propagate in command handlers. Command signatures return `Result<T, SkillScoutError>` (serialized to a plain string by its `Serialize` impl).
 - **`models.rs`** — Shared `Serialize`/`Deserialize` structs: `Agent`, `Project`, `RepositoryItem`, `ItemSelection`, `PromotedItem`, etc.
 - **`commands/`** — One file per concern:
   - `auth.rs` — GitHub Device Flow OAuth (`start_github_device_flow`, `poll_github_token`, `check_github_auth`, `logout_github`)
@@ -64,10 +80,17 @@ The frontend communicates with the Rust backend exclusively via `invoke()` from 
 
 ### Frontend (`src/`)
 
+- **`api.ts`** — The only file that calls `invoke()`. Every Tauri command is wrapped in a typed function here; views import from `@/api`, never from `@tauri-apps/api/core` directly.
+- **`types.ts`** — Shared TypeScript interfaces (`Agent`, `Skill`, `PrStatus`). Interfaces that include the full API response shape live in `api.ts` alongside their wrapper functions.
 - **`router.ts`** — Six routes: `/` (Projects), `/skills`, `/rules`, `/unmanaged`, `/agents`, `/settings`
 - **`views/`** — One Vue component per route. `SkillsView` and `RulesView` render a skills×projects selection matrix; `UnmanagedView` discovers local skills/rules not tracked in the DB; `ProjectsView` manages registered project paths.
-- **`composables/useToast.ts`** — Shared toast notification state used across all views.
+- **`composables/`** — `useToast` (shared toast state, `createSharedComposable`), `useUpdater` (Tauri updater + beta-channel toggle), `useItemsMatrix` (selection matrix logic), `useEscapeKey` (modal dismiss).
+- **`utils/formatError.ts`** — `formatError(err, fallback)`: extracts a string message from unknown catch values. Always use this in `catch` blocks before passing to `useToast`.
 - **`components/`** — Reusable UI primitives (`BaseButton`, `CardItem`, `TickBox`, `ContentModal`, `ConfirmModal`, `InputField`, `PageLayout`, `EmptyState`, `Sidebar`, `Toast`, `GitHubLoginModal`).
+
+### Cloudflare Worker (`worker/`)
+
+A Cloudflare Worker that serves Tauri's update manifest endpoint. It fetches GitHub releases and returns a JSON payload matching Tauri's updater protocol. The `X-Channel: beta` request header (set by `useUpdater` when `betaTester` is enabled) makes the worker include pre-releases in the candidate set.
 
 ### Core Data Flow
 
