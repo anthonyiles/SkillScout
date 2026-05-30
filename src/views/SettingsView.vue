@@ -92,6 +92,7 @@ function installButtonLabel() {
         <p class="text-xs text-muted mt-1 ml-6">Beta releases may be less stable but include the latest features.</p>
       </div>
 
+
       <div v-if="updateAvailable" class="mb-4 p-4 bg-primary/10 border border-primary/30 rounded-md">
         <p class="text-sm font-medium mb-1">Version {{ updateAvailable.version }} is available</p>
         <p v-if="updateAvailable.notes" class="text-sm text-muted mb-3 whitespace-pre-line">{{ updateAvailable.notes }}</p>

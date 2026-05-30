@@ -18,6 +18,7 @@ const mockCheckForUpdate = vi.fn()
 const mockSetBetaTester = vi.fn()
 const mockIsBetaTester = ref(false)
 
+
 vi.mock('../../composables/useUpdater', () => ({
   useUpdater: () => ({
     updateAvailable: ref(null),
