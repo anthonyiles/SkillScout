@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useToast } from '../composables/useToast'
 import { useUpdater } from '../composables/useUpdater'
 import { getSetting, setSetting } from '../api'
@@ -15,8 +15,17 @@ const { success, error } = useToast()
 const { updateAvailable, checking, installing, installPercent, isBetaTester, checkForUpdate, installUpdate, setBetaTester } = useUpdater()
 
 async function onBetaTesterChange(value: boolean) {
-  await setBetaTester(value)
-  await checkForUpdate()
+  try {
+    await setBetaTester(value)
+    if (checking.value) {
+      await new Promise<void>(resolve => {
+        const stop = watch(checking, v => { if (!v) { stop(); resolve() } })
+      })
+    }
+    await checkForUpdate()
+  } catch (e) {
+    error(formatError(e, 'Failed to save beta tester preference'))
+  }
 }
 
 const GITHUB_HTTPS_PATTERN = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+(\.git)?$/

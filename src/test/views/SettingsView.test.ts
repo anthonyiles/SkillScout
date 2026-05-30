@@ -4,6 +4,11 @@ import { mount, flushPromises } from '@vue/test-utils'
 import * as api from '../../api'
 import SettingsView from '../../views/SettingsView.vue'
 
+const mockToastError = vi.fn()
+vi.mock('../../composables/useToast', () => ({
+  useToast: () => ({ error: mockToastError, success: vi.fn() }),
+}))
+
 vi.mock('../../api', () => ({
   getSetting: vi.fn(),
   setSetting: vi.fn(),
@@ -61,6 +66,7 @@ describe('SettingsView', () => {
     vi.mocked(api.setSetting).mockResolvedValue(undefined)
     mockSetBetaTester.mockResolvedValue(undefined)
     mockCheckForUpdate.mockResolvedValue(undefined)
+    mockToastError.mockReset()
   })
 
   it('loads the saved repo URL on mount', async () => {
@@ -158,5 +164,19 @@ describe('SettingsView', () => {
     await flushPromises()
 
     expect(mockSetBetaTester).toHaveBeenCalledWith(false)
+  })
+
+  it('shows error toast when setBetaTester fails', async () => {
+    mockSetBetaTester.mockRejectedValue(new Error('DB error'))
+    const wrapper = mount(SettingsView)
+    await flushPromises()
+
+    const checkbox = wrapper.find('[data-testid="tickbox"]')
+    ;(checkbox.element as HTMLInputElement).checked = true
+    await checkbox.trigger('change')
+    await flushPromises()
+
+    expect(mockToastError).toHaveBeenCalled()
+    expect(mockCheckForUpdate).not.toHaveBeenCalled()
   })
 })
