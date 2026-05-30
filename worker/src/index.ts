@@ -107,26 +107,37 @@ export default {
     }
 
     const version = release.tag_name.replace(/^v/, '')
-    const platforms: Record<string, PlatformTarget> = {}
 
-    for (const { platforms: keys, suffix } of PLATFORM_PATTERNS) {
-      const asset = release.assets.find(a => a.name.endsWith(suffix))
-      const sigAsset = release.assets.find(a => a.name.endsWith(suffix + '.sig'))
-      if (!asset || !sigAsset) continue
-
-      let signature: string
+    async function fetchSignature(asset: GitHubAsset, sigAsset: GitHubAsset, keys: string[]): Promise<[string[], PlatformTarget] | null> {
       try {
         const sigRes = await fetch(sigAsset.browser_download_url, {
           headers: { 'User-Agent': 'SkillScout-Updater/1.0' },
         })
-        if (!sigRes.ok) continue
-        signature = (await sigRes.text()).trim()
-      } catch {
-        continue
+        if (!sigRes.ok) {
+          console.error(`[updater] sig fetch failed for ${sigAsset.name}: HTTP ${sigRes.status}`)
+          return null
+        }
+        const signature = (await sigRes.text()).trim()
+        return [keys, { url: asset.browser_download_url, signature }]
+      } catch (e) {
+        console.error(`[updater] sig fetch error for ${sigAsset.name}:`, e)
+        return null
       }
+    }
 
+    const sigTasks = PLATFORM_PATTERNS.flatMap(({ platforms: keys, suffix }) => {
+      const asset = release.assets.find(a => a.name.endsWith(suffix))
+      const sigAsset = release.assets.find(a => a.name.endsWith(suffix + '.sig'))
+      if (!asset || !sigAsset) return []
+      return [fetchSignature(asset, sigAsset, keys)]
+    })
+
+    const platforms: Record<string, PlatformTarget> = {}
+    for (const result of await Promise.all(sigTasks)) {
+      if (!result) continue
+      const [keys, target] = result
       for (const platform of keys) {
-        platforms[platform] = { url: asset.browser_download_url, signature }
+        platforms[platform] = target
       }
     }
 

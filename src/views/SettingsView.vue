@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useToast } from '../composables/useToast'
+import { until } from '@vueuse/core'
 import { useUpdater } from '../composables/useUpdater'
 import { getSetting, setSetting } from '../api'
 import { formatError } from '../utils/formatError'
@@ -18,9 +19,7 @@ async function onBetaTesterChange(value: boolean) {
   try {
     await setBetaTester(value)
     if (checking.value) {
-      await new Promise<void>(resolve => {
-        const stop = watch(checking, v => { if (!v) { stop(); resolve() } })
-      })
+      await until(checking).toBe(false)
     }
     await checkForUpdate()
   } catch (e) {
