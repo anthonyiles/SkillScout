@@ -99,7 +99,7 @@ pub async fn check_github_auth() -> Result<bool, String> {
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
-        .map_err(|_| "Network error while verifying GitHub connection.".to_string())?;
+        .map_err(|e| SkillScoutError::NetworkError(format!("Network error while verifying GitHub connection: {}", e)).to_string())?;
 
     Ok(res.status().is_success())
 }
