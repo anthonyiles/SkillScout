@@ -96,7 +96,7 @@ export default {
       release = await fetchRelease(env.GITHUB_REPO, channel, githubHeaders)
     } catch (e) {
       return new Response(
-        JSON.stringify({ error: 'Failed to reach GitHub API', detail: String(e) }),
+        JSON.stringify({ error: 'Failed to reach GitHub API', detail: e instanceof Error ? e.message : 'Unknown error' }),
         { status: 502, headers: JSON_HEADERS },
       )
     }
