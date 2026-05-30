@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { ref } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import * as api from '../../api'
 import SettingsView from '../../views/SettingsView.vue'
@@ -8,9 +9,21 @@ vi.mock('../../api', () => ({
   setSetting: vi.fn(),
 }))
 
+vi.mock('../../composables/useUpdater', () => ({
+  useUpdater: () => ({
+    updateAvailable: ref(null),
+    checking: ref(false),
+    installing: ref(false),
+    installPercent: ref(null),
+    checkForUpdate: vi.fn(),
+    installUpdate: vi.fn(),
+  }),
+}))
+
 // Stub child components that have their own styling/behaviour we don't test here
+// Actions slot rendered before default slot to match real PageLayout header layout
 vi.mock('../../components/PageLayout.vue', () => ({
-  default: { template: '<div><slot /><slot name="actions" /></div>' },
+  default: { template: '<div><slot name="actions" /><slot /></div>' },
 }))
 vi.mock('../../components/BaseButton.vue', () => ({
   default: {

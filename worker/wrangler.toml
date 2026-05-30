@@ -1,0 +1,9 @@
+name = "skillscout-update"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[vars]
+GITHUB_REPO = "anthonyiles/SkillScout"
+
+# Store the GitHub token as a secret (never in this file):
+# wrangler secret put GITHUB_TOKEN

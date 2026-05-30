@@ -1,6 +1,11 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import Sidebar from './components/Sidebar.vue'
 import Toast from './components/Toast.vue'
+import { useUpdater } from './composables/useUpdater'
+
+const { checkForUpdate } = useUpdater()
+onMounted(() => { checkForUpdate() })
 </script>
 
 <template>

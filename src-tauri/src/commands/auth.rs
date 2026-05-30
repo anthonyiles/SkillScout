@@ -1,3 +1,4 @@
+use crate::error::SkillScoutError;
 use crate::models::{DeviceAuthResponse, TokenResponse};
 use crate::utils::auth::{load_token, save_token, NO_CREDENTIAL};
 
@@ -24,7 +25,7 @@ pub async fn start_github_device_flow() -> Result<DeviceAuthResponse, String> {
         ])
         .send()
         .await
-        .map_err(|_| "Network error while starting authentication flow.".to_string())?;
+        .map_err(|e| SkillScoutError::NetworkError(format!("Network error while starting authentication flow: {}", e)).to_string())?;
 
     let status = res.status();
     let body_text = res.text().await.map_err(|_| "Failed to read response body.".to_string())?;
@@ -69,7 +70,7 @@ pub async fn poll_github_token(device_code: String) -> Result<TokenResponse, Str
         ])
         .send()
         .await
-        .map_err(|_| "Network error while polling for access token.".to_string())?;
+        .map_err(|e| SkillScoutError::NetworkError(format!("Network error while polling for access token: {}", e)).to_string())?;
 
     let token_res = res.json::<TokenResponse>().await.map_err(|_| "Failed to process GitHub's response.".to_string())?;
     

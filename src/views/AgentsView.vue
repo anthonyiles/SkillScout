@@ -3,18 +3,12 @@ import { ref, onMounted } from 'vue'
 import { useToast } from '../composables/useToast'
 import { formatError } from '../utils/formatError'
 import { getAgents, saveAgent, deleteAgent, resetAgentsToDefaults } from '../api'
+import type { Agent } from '../types'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import BaseButton from '../components/BaseButton.vue'
 import InputField from '../components/InputField.vue'
 import PageLayout from '../components/PageLayout.vue'
 import CardItem from '../components/CardItem.vue'
-
-interface Agent {
-  id: string
-  name: string
-  skillsPath: string
-  rulesPath: string
-}
 
 const agents = ref<Agent[]>([])
 const saving = ref(false)
@@ -22,12 +16,9 @@ const { success, error } = useToast()
 
 async function loadAgents() {
   try {
-    const fetched = await getAgents()
-    if (fetched) {
-      agents.value = fetched
-    }
+    agents.value = await getAgents()
   } catch (err) {
-    console.error('Failed to load agents:', err)
+    error(formatError(err, 'Failed to load agents'))
   }
 }
 
@@ -66,8 +57,8 @@ async function removeAgent(id: string) {
     await deleteAgent(id)
     agents.value = agents.value.filter(agent => agent.id !== id)
     success('Agent removed.')
-  } catch {
-    error('Failed to remove agent')
+  } catch (err) {
+    error(formatError(err, 'Failed to remove agent'))
   }
 }
 

@@ -260,19 +260,30 @@ fn is_safe_filename(name: &str) -> bool {
     !path.components().any(|c| matches!(c, std::path::Component::ParentDir | std::path::Component::RootDir | std::path::Component::Prefix(_)))
 }
 
+fn is_safe_absolute_path(path_str: &str) -> bool {
+    let path = Path::new(path_str);
+    if !path.is_absolute() {
+        return false;
+    }
+    !path.components().any(|c| matches!(c, std::path::Component::ParentDir))
+}
+
 #[tauri::command]
-pub fn check_existing(tasks: Vec<SyncTask>) -> Vec<String> {
+pub fn check_existing(tasks: Vec<SyncTask>) -> Result<Vec<String>, String> {
     let mut existing = Vec::new();
     for task in tasks {
+        if !is_safe_absolute_path(&task.target_dir) {
+            return Err(SkillScoutError::PathTraversalAttempt.to_string());
+        }
         if !is_safe_filename(&task.file_name) {
-            continue;
+            return Err(SkillScoutError::PathTraversalAttempt.to_string());
         }
         let target_path = Path::new(&task.target_dir).join(&task.file_name);
         if target_path.exists() {
             existing.push(format!("{}/{}", task.target_dir, task.file_name));
         }
     }
-    existing
+    Ok(existing)
 }
 
 #[tauri::command]
@@ -280,8 +291,11 @@ pub async fn apply_skills(tasks: Vec<SyncTask>) -> Result<usize, String> {
     let count = tauri::async_runtime::spawn_blocking(move || {
         let mut count = 0;
         for task in tasks {
+            if !is_safe_absolute_path(&task.target_dir) {
+                return Err(SkillScoutError::PathTraversalAttempt.to_string());
+            }
             if !is_safe_filename(&task.file_name) {
-                continue;
+                return Err(SkillScoutError::PathTraversalAttempt.to_string());
             }
             let target_dir = Path::new(&task.target_dir);
             let target_path = target_dir.join(&task.file_name);
@@ -330,13 +344,16 @@ pub async fn apply_skills(tasks: Vec<SyncTask>) -> Result<usize, String> {
 }
 
 #[tauri::command]
-pub fn get_project_file_hashes(project_path: String, sub_folders: Vec<String>) -> Vec<FileHash> {
+pub fn get_project_file_hashes(project_path: String, sub_folders: Vec<String>) -> Result<Vec<FileHash>, String> {
+    if !is_safe_absolute_path(&project_path) {
+        return Err(SkillScoutError::PathTraversalAttempt.to_string());
+    }
     let mut hashes: Vec<FileHash> = Vec::new();
     let base_path = Path::new(&project_path);
 
     for folder in &sub_folders {
         if !is_safe_filename(folder) {
-            continue;
+            return Err(SkillScoutError::PathTraversalAttempt.to_string());
         }
         let folder_path = base_path.join(folder);
         if !folder_path.exists() || !folder_path.is_dir() {
@@ -402,17 +419,20 @@ pub fn get_project_file_hashes(project_path: String, sub_folders: Vec<String>) -
         }
     }
 
-    hashes
+    Ok(hashes)
 }
 
 #[tauri::command]
-pub fn get_project_files(project_path: String, sub_folders: Vec<String>) -> Vec<String> {
+pub fn get_project_files(project_path: String, sub_folders: Vec<String>) -> Result<Vec<String>, String> {
+    if !is_safe_absolute_path(&project_path) {
+        return Err(SkillScoutError::PathTraversalAttempt.to_string());
+    }
     let mut files = Vec::new();
     let base_path = Path::new(&project_path);
 
     for folder in sub_folders {
         if !is_safe_filename(&folder) {
-            continue;
+            return Err(SkillScoutError::PathTraversalAttempt.to_string());
         }
         let folder_path = base_path.join(&folder);
         if folder_path.exists() && folder_path.is_dir() {
@@ -439,7 +459,7 @@ pub fn get_project_files(project_path: String, sub_folders: Vec<String>) -> Vec<
 
     files.sort();
     files.dedup();
-    files
+    Ok(files)
 }
 
 #[cfg(test)]
