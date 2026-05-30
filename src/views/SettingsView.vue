@@ -19,7 +19,7 @@ async function onBetaTesterChange(value: boolean) {
   try {
     await setBetaTester(value)
     if (checking.value) {
-      await until(checking).toBe(false)
+      await until(checking).toBe(false, { timeout: 30_000, throwOnTimeout: false })
     }
     await checkForUpdate()
   } catch (e) {
