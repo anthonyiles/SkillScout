@@ -9,14 +9,20 @@ vi.mock('../../api', () => ({
   setSetting: vi.fn(),
 }))
 
+const mockCheckForUpdate = vi.fn()
+const mockSetBetaTester = vi.fn()
+const mockIsBetaTester = ref(false)
+
 vi.mock('../../composables/useUpdater', () => ({
   useUpdater: () => ({
     updateAvailable: ref(null),
     checking: ref(false),
     installing: ref(false),
     installPercent: ref(null),
-    checkForUpdate: vi.fn(),
+    isBetaTester: mockIsBetaTester,
+    checkForUpdate: mockCheckForUpdate,
     installUpdate: vi.fn(),
+    setBetaTester: mockSetBetaTester,
   }),
 }))
 
@@ -39,12 +45,22 @@ vi.mock('../../components/InputField.vue', () => ({
     template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
   },
 }))
+vi.mock('../../components/TickBox.vue', () => ({
+  default: {
+    props: ['checked', 'label'],
+    emits: ['change'],
+    template: '<input type="checkbox" :checked="checked" @change="$emit(\'change\', $event.target.checked)" data-testid="tickbox" />',
+  },
+}))
 
 describe('SettingsView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockIsBetaTester.value = false
     vi.mocked(api.getSetting).mockResolvedValue(null)
     vi.mocked(api.setSetting).mockResolvedValue(undefined)
+    mockSetBetaTester.mockResolvedValue(undefined)
+    mockCheckForUpdate.mockResolvedValue(undefined)
   })
 
   it('loads the saved repo URL on mount', async () => {
@@ -98,5 +114,49 @@ describe('SettingsView', () => {
     await flushPromises()
 
     expect(api.setSetting).toHaveBeenCalledWith('repoUrl', 'git@github.com:org/repo.git')
+  })
+
+  it('renders the beta tester checkbox unchecked by default', async () => {
+    const wrapper = mount(SettingsView)
+    await flushPromises()
+
+    const checkbox = wrapper.find('[data-testid="tickbox"]')
+    expect(checkbox.exists()).toBe(true)
+    expect((checkbox.element as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('renders the beta tester checkbox checked when isBetaTester is true', async () => {
+    mockIsBetaTester.value = true
+    const wrapper = mount(SettingsView)
+    await flushPromises()
+
+    const checkbox = wrapper.find('[data-testid="tickbox"]')
+    expect((checkbox.element as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('calls setBetaTester and checkForUpdate when beta checkbox is toggled on', async () => {
+    const wrapper = mount(SettingsView)
+    await flushPromises()
+
+    const checkbox = wrapper.find('[data-testid="tickbox"]')
+    ;(checkbox.element as HTMLInputElement).checked = true
+    await checkbox.trigger('change')
+    await flushPromises()
+
+    expect(mockSetBetaTester).toHaveBeenCalledWith(true)
+    expect(mockCheckForUpdate).toHaveBeenCalled()
+  })
+
+  it('calls setBetaTester(false) when beta checkbox is toggled off', async () => {
+    mockIsBetaTester.value = true
+    const wrapper = mount(SettingsView)
+    await flushPromises()
+
+    const checkbox = wrapper.find('[data-testid="tickbox"]')
+    ;(checkbox.element as HTMLInputElement).checked = false
+    await checkbox.trigger('change')
+    await flushPromises()
+
+    expect(mockSetBetaTester).toHaveBeenCalledWith(false)
   })
 })

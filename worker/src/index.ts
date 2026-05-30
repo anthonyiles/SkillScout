@@ -76,7 +76,11 @@ async function fetchRelease(repo: string, channel: string, githubHeaders: Record
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const channel = new URL(request.url).searchParams.get('channel') ?? 'stable'
+    // X-Channel header takes priority — allows clients to switch channels at runtime
+    // without a config change. Falls back to the ?channel query param for curl testing.
+    const channel = request.headers.get('X-Channel')
+      ?? new URL(request.url).searchParams.get('channel')
+      ?? 'stable'
 
     const githubHeaders: Record<string, string> = {
       Accept: 'application/vnd.github+json',

@@ -3,6 +3,7 @@ import { relaunch } from '@tauri-apps/plugin-process'
 import { ref } from 'vue'
 import { createSharedComposable } from '@vueuse/core'
 import { useToast } from './useToast'
+import { getSetting, setSetting } from '../api'
 
 export interface UpdateInfo {
   version: string
@@ -16,12 +17,28 @@ export const useUpdater = createSharedComposable(() => {
   const checking = ref(false)
   const installing = ref(false)
   const installPercent = ref<number | null>(null)
+  const isBetaTester = ref(false)
+
+  async function loadChannel() {
+    const val = await getSetting('betaTester').catch(() => null)
+    isBetaTester.value = val === 'true'
+  }
+
+  async function setBetaTester(value: boolean) {
+    isBetaTester.value = value
+    await setSetting('betaTester', value ? 'true' : 'false')
+  }
+
+  function channelHeaders() {
+    return { headers: { 'X-Channel': isBetaTester.value ? 'beta' : 'stable' } }
+  }
 
   async function checkForUpdate() {
     if (checking.value) return
     checking.value = true
     try {
-      const update = await check()
+      await loadChannel()
+      const update = await check(channelHeaders())
       if (update?.available) {
         updateAvailable.value = { version: update.version, notes: update.body ?? null }
       } else {
@@ -43,7 +60,7 @@ export const useUpdater = createSharedComposable(() => {
     try {
       // Always re-check to guarantee the freshest available version is installed,
       // not the one cached when the app launched hours ago.
-      const update = await check()
+      const update = await check(channelHeaders())
       if (!update?.available) {
         updateAvailable.value = null
         return
@@ -72,5 +89,5 @@ export const useUpdater = createSharedComposable(() => {
     }
   }
 
-  return { updateAvailable, checking, installing, installPercent, checkForUpdate, installUpdate }
+  return { updateAvailable, checking, installing, installPercent, isBetaTester, checkForUpdate, installUpdate, setBetaTester }
 })
