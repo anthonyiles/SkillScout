@@ -7,11 +7,17 @@ import { formatError } from '../utils/formatError'
 import BaseButton from '../components/BaseButton.vue'
 import InputField from '../components/InputField.vue'
 import PageLayout from '../components/PageLayout.vue'
+import TickBox from '../components/TickBox.vue'
 
 const repoUrl = ref('')
 const saving = ref(false)
 const { success, error } = useToast()
-const { updateAvailable, checking, installing, installPercent, checkForUpdate, installUpdate } = useUpdater()
+const { updateAvailable, checking, installing, installPercent, isBetaTester, checkForUpdate, installUpdate, setBetaTester } = useUpdater()
+
+async function onBetaTesterChange(value: boolean) {
+  await setBetaTester(value)
+  await checkForUpdate()
+}
 
 const GITHUB_HTTPS_PATTERN = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+(\.git)?$/
 const GITHUB_SSH_PATTERN = /^git@github\.com:[\w.-]+\/[\w.-]+(\.git)?$/
@@ -68,6 +74,15 @@ function installButtonLabel() {
     <div class="bg-card/70 backdrop-blur-md border border-white/10 p-6 rounded-md">
       <h2 class="text-xl font-semibold mb-2">App Updates</h2>
       <p class="text-sm text-muted mb-4">SkillScout checks for updates on launch.</p>
+
+      <div class="mb-4">
+        <TickBox
+          :checked="isBetaTester"
+          label="Receive beta updates"
+          @change="onBetaTesterChange"
+        />
+        <p class="text-xs text-muted mt-1 ml-6">Beta releases may be less stable but include the latest features.</p>
+      </div>
 
       <div v-if="updateAvailable" class="mb-4 p-4 bg-primary/10 border border-primary/30 rounded-md">
         <p class="text-sm font-medium mb-1">Version {{ updateAvailable.version }} is available</p>
