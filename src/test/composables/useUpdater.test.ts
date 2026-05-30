@@ -134,6 +134,14 @@ describe('useUpdater', () => {
     expect(api.setSetting).toHaveBeenCalledWith('betaTester', 'false')
   })
 
+  it('setBetaTester does not update isBetaTester ref when setSetting throws', async () => {
+    vi.mocked(api.setSetting).mockRejectedValue(new Error('DB error'))
+    const updater = await freshUpdater()
+
+    await expect(updater.setBetaTester(true)).rejects.toThrow('DB error')
+    expect(updater.isBetaTester.value).toBe(false)
+  })
+
   it('installUpdate passes the correct channel header', async () => {
     vi.mocked(api.getSetting).mockResolvedValue('true')
     const mockDownloadAndInstall = vi.fn().mockResolvedValue(undefined)
