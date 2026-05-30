@@ -1,9 +1,7 @@
 {
   "plugins": {
     "updater": {
-      "endpoints": [
-        "https://skillscout-update.anthonyiles91.workers.dev?channel=beta"
-      ]
+      "endpoints": ["https://skillscout-update.iles.sh?channel=beta"]
     }
   }
 }

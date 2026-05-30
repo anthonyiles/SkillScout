@@ -1,0 +1,14 @@
+{
+  "name": "skillscout-update-worker",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4",
+    "typescript": "~5.6.2",
+    "wrangler": "^3"
+  }
+}
