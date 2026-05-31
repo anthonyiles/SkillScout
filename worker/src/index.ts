@@ -32,7 +32,7 @@ interface UpdateManifest {
 // Maps asset filename suffixes to Tauri platform keys.
 // The universal macOS binary covers both x86_64 and aarch64.
 const PLATFORM_PATTERNS: Array<{ platforms: string[]; suffix: string }> = [
-  { platforms: ['darwin-x86_64', 'darwin-aarch64'], suffix: '_universal.dmg.tar.gz' },
+  { platforms: ['darwin-x86_64', 'darwin-aarch64'], suffix: '_universal.app.tar.gz' },
   { platforms: ['linux-x86_64'], suffix: '_amd64.AppImage.tar.gz' },
   { platforms: ['windows-x86_64'], suffix: '_x64-setup.nsis.zip' },
 ]
@@ -60,17 +60,16 @@ async function fetchRelease(repo: string, channel: string, githubHeaders: Record
     const releases = await res.json() as GitHubRelease[]
     return releases.find(r => !r.draft) ?? null
   } else {
-    // Stable: /releases/latest only returns non-prerelease, non-draft releases.
-    // GitHub returns 404 when no stable release exists yet — treat that as no update.
+    // Stable: pick the most recent non-draft, non-prerelease release.
+    // Using the list endpoint avoids the 404 that /releases/latest returns
+    // when only pre-releases exist.
     const res = await fetch(
-      `https://api.github.com/repos/${repo}/releases/latest`,
+      `https://api.github.com/repos/${repo}/releases?per_page=10`,
       { headers: githubHeaders },
     )
-    if (res.status === 404) return null
     if (!res.ok) throw new Error(`GitHub API error: ${res.status}`)
-    const release = await res.json() as GitHubRelease
-    if (release.draft || release.prerelease) return null
-    return release
+    const releases = await res.json() as GitHubRelease[]
+    return releases.find(r => !r.draft && !r.prerelease) ?? null
   }
 }
 
@@ -102,8 +101,10 @@ export default {
     }
 
     if (!release) {
-      // 204 tells Tauri's updater there is no update available
-      return new Response(null, { status: 204, headers: NO_UPDATE_HEADERS })
+      return new Response(
+        JSON.stringify({ error: `No releases found for channel: ${channel}` }),
+        { status: 404, headers: JSON_HEADERS },
+      )
     }
 
     const version = release.tag_name.replace(/^v/, '')
