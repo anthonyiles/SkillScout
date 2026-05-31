@@ -141,7 +141,7 @@ describe('SettingsView', () => {
     expect((checkbox.element as HTMLInputElement).checked).toBe(true)
   })
 
-  it('calls setBetaTester and checkForUpdate when beta checkbox is toggled on', async () => {
+  it('calls setBetaTester when beta checkbox is toggled on', async () => {
     const wrapper = mount(SettingsView)
     await flushPromises()
 
@@ -151,7 +151,7 @@ describe('SettingsView', () => {
     await flushPromises()
 
     expect(mockSetBetaTester).toHaveBeenCalledWith(true)
-    expect(mockCheckForUpdate).toHaveBeenCalled()
+    expect(mockCheckForUpdate).not.toHaveBeenCalled()
   })
 
   it('calls setBetaTester(false) when beta checkbox is toggled off', async () => {
@@ -178,6 +178,5 @@ describe('SettingsView', () => {
     await flushPromises()
 
     expect(mockToastError).toHaveBeenCalled()
-    expect(mockCheckForUpdate).not.toHaveBeenCalled()
   })
 })
