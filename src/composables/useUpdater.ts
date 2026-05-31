@@ -33,7 +33,7 @@ export const useUpdater = createSharedComposable(() => {
     return { headers: { 'X-Channel': isBetaTester.value ? 'beta' : 'stable' } }
   }
 
-  async function checkForUpdate() {
+  async function checkForUpdate(silent = false) {
     if (checking.value) return
     checking.value = true
     try {
@@ -45,8 +45,11 @@ export const useUpdater = createSharedComposable(() => {
         updateAvailable.value = null
       }
     } catch (e) {
-      // Best-effort on startup — network unavailability is not a user-facing error
-      console.warn('[updater] check failed:', e)
+      if (silent) {
+        console.warn('[updater] check failed:', e)
+      } else {
+        error(`Update check failed: ${e instanceof Error ? e.message : String(e)}`)
+      }
     } finally {
       checking.value = false
     }

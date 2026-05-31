@@ -17,8 +17,9 @@ vi.mock('../../api', () => ({
   setSetting: vi.fn(),
 }))
 
+const mockToastError = vi.fn()
 vi.mock('../../composables/useToast', () => ({
-  useToast: () => ({ error: vi.fn(), success: vi.fn() }),
+  useToast: () => ({ error: mockToastError, success: vi.fn() }),
 }))
 
 // Bypass createSharedComposable memoisation so each test gets a fresh instance
@@ -42,6 +43,7 @@ async function freshUpdater() {
 describe('useUpdater', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockToastError.mockReset()
     vi.mocked(api.getSetting).mockResolvedValue(null)
     vi.mocked(api.setSetting).mockResolvedValue(undefined)
     vi.mocked(updaterPlugin.check).mockResolvedValue(null)
@@ -108,13 +110,21 @@ describe('useUpdater', () => {
     expect(updater.updateAvailable.value).toBeNull()
   })
 
-  it('checkForUpdate does not throw when check() fails — best-effort', async () => {
-    vi.mocked(api.getSetting).mockResolvedValue(null)
+  it('checkForUpdate shows error toast when check() fails', async () => {
     vi.mocked(updaterPlugin.check).mockRejectedValue(new Error('Network error'))
 
     const updater = await freshUpdater()
     await expect(updater.checkForUpdate()).resolves.toBeUndefined()
     expect(updater.checking.value).toBe(false)
+    expect(mockToastError).toHaveBeenCalledWith(expect.stringContaining('Network error'))
+  })
+
+  it('checkForUpdate suppresses error toast when silent = true', async () => {
+    vi.mocked(updaterPlugin.check).mockRejectedValue(new Error('Network error'))
+
+    const updater = await freshUpdater()
+    await expect(updater.checkForUpdate(true)).resolves.toBeUndefined()
+    expect(mockToastError).not.toHaveBeenCalled()
   })
 
   it('setBetaTester updates isBetaTester and persists via setSetting', async () => {
