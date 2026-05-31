@@ -72,3 +72,26 @@ jobs:
           releaseId: ${{ github.event.release.id }}
           args: ${{ matrix.args }}
           includeUpdaterJson: false
+
+      - name: Upload signed updater bundles
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          # macOS: tauri-action uploads the bundle as SkillScout_universal.app.tar.gz but
+          # the local .sig is SkillScout.app.tar.gz.sig — rename to match before uploading.
+          find src-tauri/target -name "SkillScout.app.tar.gz.sig" | while read f; do
+            dir=$(dirname "$f")
+            cp "$f" "$dir/SkillScout_universal.app.tar.gz.sig"
+            gh release upload "$RELEASE_TAG" "$dir/SkillScout_universal.app.tar.gz.sig" --clobber
+          done
+          # Linux / Windows: upload the updater bundles and their signatures.
+          find src-tauri/target \( \
+            -name "SkillScout_*.AppImage.tar.gz" \
+            -o -name "SkillScout_*.AppImage.tar.gz.sig" \
+            -o -name "SkillScout_*.nsis.zip" \
+            -o -name "SkillScout_*.nsis.zip.sig" \
+          \) | while read f; do
+            gh release upload "$RELEASE_TAG" "$f" --clobber
+          done
