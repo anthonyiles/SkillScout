@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/anthonyiles/SkillScout/compare/skillscout-v0.3.0...skillscout-v0.3.1) (2026-05-31)
+
+
+### Bug Fixes
+
+* resolve updater channel routing and signing pipeline ([a2e610a](https://github.com/anthonyiles/SkillScout/commit/a2e610ad59b2a9fd97e30b44c91357f0b9ef0032))
+
 ## [0.3.0](https://github.com/anthonyiles/SkillScout/compare/skillscout-v0.2.0...skillscout-v0.3.0) (2026-05-31)
 
 
