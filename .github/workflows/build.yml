@@ -55,7 +55,7 @@ jobs:
 
       - run: npm ci
 
-      - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
+      - uses: tauri-apps/tauri-action@61337b436e85a75347fec553393c9e2be16a0d85 # dev — adds uploadUpdaterSignatures
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
