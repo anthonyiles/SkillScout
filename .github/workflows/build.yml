@@ -73,25 +73,33 @@ jobs:
           args: ${{ matrix.args }}
           includeUpdaterJson: false
 
-      - name: Upload signed updater bundles
+      - name: Upload macOS updater signature
+        if: matrix.platform == 'macos-latest'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          SIG=$(ls src-tauri/target/universal-apple-darwin/release/bundle/macos/SkillScout.app.tar.gz.sig)
+          cp "$SIG" "$(dirname $SIG)/SkillScout_universal.app.tar.gz.sig"
+          gh release upload "$RELEASE_TAG" "$(dirname $SIG)/SkillScout_universal.app.tar.gz.sig" --clobber
+
+      - name: Upload Linux updater bundles
+        if: matrix.platform == 'ubuntu-22.04'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          DIR=src-tauri/target/release/bundle/appimage
+          gh release upload "$RELEASE_TAG" $DIR/SkillScout_*.AppImage.tar.gz --clobber
+          gh release upload "$RELEASE_TAG" $DIR/SkillScout_*.AppImage.tar.gz.sig --clobber
+
+      - name: Upload Windows updater bundles
+        if: matrix.platform == 'windows-latest'
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          # macOS: tauri-action uploads the bundle as SkillScout_universal.app.tar.gz but
-          # the local .sig is SkillScout.app.tar.gz.sig — rename to match before uploading.
-          find src-tauri/target -name "SkillScout.app.tar.gz.sig" | while read f; do
-            dir=$(dirname "$f")
-            cp "$f" "$dir/SkillScout_universal.app.tar.gz.sig"
-            gh release upload "$RELEASE_TAG" "$dir/SkillScout_universal.app.tar.gz.sig" --clobber
-          done
-          # Linux / Windows: upload the updater bundles and their signatures.
-          find src-tauri/target \( \
-            -name "SkillScout_*.AppImage.tar.gz" \
-            -o -name "SkillScout_*.AppImage.tar.gz.sig" \
-            -o -name "SkillScout_*.nsis.zip" \
-            -o -name "SkillScout_*.nsis.zip.sig" \
-          \) | while read f; do
-            gh release upload "$RELEASE_TAG" "$f" --clobber
-          done
+          DIR=src-tauri/target/release/bundle/nsis
+          gh release upload "$RELEASE_TAG" $DIR/SkillScout_*-setup.nsis.zip --clobber
+          gh release upload "$RELEASE_TAG" $DIR/SkillScout_*-setup.nsis.zip.sig --clobber
