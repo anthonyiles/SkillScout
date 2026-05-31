@@ -71,3 +71,4 @@ jobs:
         with:
           releaseId: ${{ github.event.release.id }}
           args: ${{ matrix.args }}
+          updaterJsonKeepUniversal: true
