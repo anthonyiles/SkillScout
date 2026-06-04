@@ -76,13 +76,14 @@ export const config: Options.Testrunner = {
   },
 
   before: async () => {
-    // tauri-driver attaches to WebView2 immediately after the process starts,
-    // before the Tauri runtime has registered its custom protocol and navigated
-    // to the embedded assets. Wait until the page title confirms the frontend
-    // has fully loaded before letting any test touch the DOM.
+    // tauri-driver attaches ChromeDriver to the WebView2 debug port before the
+    // Tauri runtime navigates to its embedded assets. ChromeDriver does not
+    // automatically follow that native Navigate() call, so the session sees a
+    // blank page. Explicitly navigate via WebDriver to trigger the load.
+    await browser.url('tauri://localhost/')
     await browser.waitUntil(
       async () => (await browser.getTitle()) === 'SkillScout',
-      { timeout: 30000, interval: 500, timeoutMsg: 'Tauri frontend did not load within 30s' },
+      { timeout: 15000, interval: 500, timeoutMsg: 'Tauri frontend did not load after navigation' },
     )
     await browser.setWindowSize(1280, 800)
   },
