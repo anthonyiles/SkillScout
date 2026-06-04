@@ -75,9 +75,14 @@ export default {
       return new Response(null, { status: 204, headers: NO_UPDATE_HEADERS })
     }
 
-    const manifestRes = await fetch(latestJson.browser_download_url, {
-      headers: { 'User-Agent': 'SkillScout-Updater/1.0' },
-    })
+    let manifestRes: Response
+    try {
+      manifestRes = await fetch(latestJson.browser_download_url, {
+        headers: { 'User-Agent': 'SkillScout-Updater/1.0' },
+      })
+    } catch {
+      return new Response(null, { status: 204, headers: NO_UPDATE_HEADERS })
+    }
     if (!manifestRes.ok) {
       return new Response(null, { status: 204, headers: NO_UPDATE_HEADERS })
     }
