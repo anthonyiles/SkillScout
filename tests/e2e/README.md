@@ -22,7 +22,6 @@ End-to-end tests using [WebdriverIO](https://webdriver.io/) with
      @wdio/local-runner@^9 \
      @wdio/mocha-framework@^9 \
      @wdio/spec-reporter@^9 \
-     wdio-chromedriver-service@^8 \
      webdriverio@^9
    ```
 
