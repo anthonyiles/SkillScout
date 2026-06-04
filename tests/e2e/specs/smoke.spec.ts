@@ -4,6 +4,8 @@
 
 describe('SkillScout smoke tests', () => {
   it('renders the app window', async () => {
+    // Wait for the Vue app to mount before reading the document title
+    await $('nav').waitForDisplayed({ timeout: 15000 })
     const title = await browser.getTitle()
     expect(title).toBe('SkillScout')
   })
