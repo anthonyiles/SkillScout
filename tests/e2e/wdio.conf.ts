@@ -76,8 +76,15 @@ export const config: Options.Testrunner = {
   },
 
   before: async () => {
-    // Maximize so elements report non-zero bounding boxes in headless CI.
-    await browser.maximizeWindow()
+    // Give the window an explicit size so elements have non-zero bounding boxes in CI.
+    await browser.setWindowSize(1280, 800)
+    // Diagnostic: log page state so CI failures are easier to diagnose.
+    const title = await browser.getTitle()
+    const source = await browser.getPageSource()
+    console.log('[e2e] title:', title)
+    console.log('[e2e] source length:', source.length)
+    console.log('[e2e] has <nav>:', source.includes('<nav'))
+    console.log('[e2e] source excerpt:', source.slice(0, 400))
   },
 
   onComplete: () => {
