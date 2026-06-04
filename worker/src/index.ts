@@ -16,7 +16,7 @@ interface GitHubRelease {
 
 const JSON_HEADERS = {
   'Content-Type': 'application/json',
-  'Cache-Control': 'public, max-age=300',
+  'Cache-Control': 'no-store',
   'Access-Control-Allow-Origin': '*',
 }
 
