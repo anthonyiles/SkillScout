@@ -75,6 +75,11 @@ export const config: Options.Testrunner = {
     tauriDriverProcess = await spawnTauriDriver()
   },
 
+  before: async () => {
+    // Maximize so elements report non-zero bounding boxes in headless CI.
+    await browser.maximizeWindow()
+  },
+
   onComplete: () => {
     tauriDriverProcess?.kill()
   },
