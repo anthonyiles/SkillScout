@@ -76,15 +76,15 @@ export const config: Options.Testrunner = {
   },
 
   before: async () => {
-    // Give the window an explicit size so elements have non-zero bounding boxes in CI.
+    // tauri-driver attaches to WebView2 immediately after the process starts,
+    // before the Tauri runtime has registered its custom protocol and navigated
+    // to the embedded assets. Wait until the page title confirms the frontend
+    // has fully loaded before letting any test touch the DOM.
+    await browser.waitUntil(
+      async () => (await browser.getTitle()) === 'SkillScout',
+      { timeout: 30000, interval: 500, timeoutMsg: 'Tauri frontend did not load within 30s' },
+    )
     await browser.setWindowSize(1280, 800)
-    // Diagnostic: log page state so CI failures are easier to diagnose.
-    const title = await browser.getTitle()
-    const source = await browser.getPageSource()
-    console.log('[e2e] title:', title)
-    console.log('[e2e] source length:', source.length)
-    console.log('[e2e] has <nav>:', source.includes('<nav'))
-    console.log('[e2e] source excerpt:', source.slice(0, 400))
   },
 
   onComplete: () => {
