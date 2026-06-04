@@ -1,10 +1,8 @@
 import type { Options } from '@wdio/types'
 import { spawn, type ChildProcess } from 'child_process'
 import { resolve } from 'path'
-import { platform } from 'os'
+import { homedir, platform } from 'os'
 
-// Platform-specific Tauri release binary path.
-// On macOS, Tauri produces a .app bundle; the executable is inside it.
 function getTauriAppPath(): string {
   const releaseDir = resolve(process.cwd(), 'src-tauri/target/release')
   if (platform() === 'darwin') {
@@ -18,37 +16,17 @@ function getTauriAppPath(): string {
 
 let tauriDriverProcess: ChildProcess | undefined
 
-function spawnTauriDriver(): Promise<ChildProcess> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn('tauri-driver', [], {
-      stdio: [null, process.stdout, process.stderr],
-    })
-
-    proc.on('error', (err) => {
-      reject(new Error(`Failed to start tauri-driver: ${err.message}. Install with: cargo install tauri-driver`))
-    })
-
-    // Give tauri-driver 1 second to start and detect early exits
-    const startTimeout = setTimeout(() => resolve(proc), 1000)
-
-    proc.on('exit', (code) => {
-      clearTimeout(startTimeout)
-      reject(new Error(`tauri-driver exited early with code ${code}`))
-    })
-  })
-}
-
 export const config: Options.Testrunner = {
   specs: ['./specs/**/*.ts'],
   maxInstances: 1,
   capabilities: [
     {
       maxInstances: 1,
-      // WebKitWebDriver (Linux) is not Chrome; use '' so capabilities match.
-      // ChromeDriver (Windows) requires 'chrome'.
-      browserName: platform() === 'linux' ? '' : 'chrome',
+      // Do not set browserName — tauri-driver handles browser selection itself.
       'tauri:options': {
         application: getTauriAppPath(),
+        // webviewOptions is required on Windows for WebView2 to attach correctly.
+        webviewOptions: {},
       },
     },
   ],
@@ -59,8 +37,6 @@ export const config: Options.Testrunner = {
   connectionRetryTimeout: 120000,
   connectionRetryCount: 3,
 
-  // tauri-driver acts as the WebDriver server; install it with:
-  // cargo install tauri-driver
   hostname: '127.0.0.1',
   port: 4444,
 
@@ -71,24 +47,18 @@ export const config: Options.Testrunner = {
     timeout: 60000,
   },
 
-  onPrepare: async () => {
-    tauriDriverProcess = await spawnTauriDriver()
-  },
-
-  before: async () => {
-    // tauri-driver attaches ChromeDriver to the WebView2 debug port before the
-    // Tauri runtime navigates to its embedded assets. ChromeDriver does not
-    // automatically follow that native Navigate() call, so the session sees a
-    // blank page. Explicitly navigate via WebDriver to trigger the load.
-    await browser.url('tauri://localhost/')
-    await browser.waitUntil(
-      async () => (await browser.getTitle()) === 'SkillScout',
-      { timeout: 15000, interval: 500, timeoutMsg: 'Tauri frontend did not load after navigation' },
+  // beforeSession/afterSession (not onPrepare/onComplete) is the correct hook
+  // pair for tauri-driver — it runs after the wdio runner is ready but before
+  // the WebDriver session is created, matching when tauri-driver is expected.
+  beforeSession: () => {
+    tauriDriverProcess = spawn(
+      resolve(homedir(), '.cargo', 'bin', 'tauri-driver'),
+      [],
+      { stdio: [null, process.stdout, process.stderr] },
     )
-    await browser.setWindowSize(1280, 800)
   },
 
-  onComplete: () => {
+  afterSession: () => {
     tauriDriverProcess?.kill()
   },
 }
