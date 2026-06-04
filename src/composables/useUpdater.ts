@@ -27,6 +27,7 @@ export const useUpdater = createSharedComposable(() => {
   async function setBetaTester(value: boolean) {
     await setSetting('betaTester', value ? 'true' : 'false')
     isBetaTester.value = value
+    updateAvailable.value = null
   }
 
   function channelHeaders() {
