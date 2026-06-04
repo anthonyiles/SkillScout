@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.2](https://github.com/anthonyiles/SkillScout/compare/skillscout-v0.4.1...skillscout-v0.4.2) (2026-06-04)
+
+
+### Bug Fixes
+
+* correct beta manifest version (0.3.1 → 0.4.1) ([192b854](https://github.com/anthonyiles/SkillScout/commit/192b8544a04e4d601fe2b6fad9039cf110647a51))
+* set beta release-please manifest to 0.4.1 ([e38b39d](https://github.com/anthonyiles/SkillScout/commit/e38b39de0800f6f577183db2dec387d3b0c90d52))
+* set beta release-please manifest to 0.4.1 to match current release ([57a9be0](https://github.com/anthonyiles/SkillScout/commit/57a9be0066540496900c73e76bc5d1a79b394640))
+
 ## [0.4.1](https://github.com/anthonyiles/SkillScout/compare/skillscout-v0.4.0...skillscout-v0.4.1) (2026-06-04)
 
 
