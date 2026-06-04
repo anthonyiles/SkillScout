@@ -5,7 +5,7 @@ import Toast from './components/Toast.vue'
 import { useUpdater } from './composables/useUpdater'
 
 const { checkForUpdate } = useUpdater()
-onMounted(() => { checkForUpdate() })
+onMounted(() => { checkForUpdate(true) })
 </script>
 
 <template>

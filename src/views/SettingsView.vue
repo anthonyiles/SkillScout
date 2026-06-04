@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useToast } from '../composables/useToast'
-import { until } from '@vueuse/core'
 import { useUpdater } from '../composables/useUpdater'
 import { getSetting, setSetting } from '../api'
 import { formatError } from '../utils/formatError'
@@ -18,10 +17,6 @@ const { updateAvailable, checking, installing, installPercent, isBetaTester, che
 async function onBetaTesterChange(value: boolean) {
   try {
     await setBetaTester(value)
-    if (checking.value) {
-      await until(checking).toBe(false, { timeout: 30_000, throwOnTimeout: false })
-    }
-    await checkForUpdate()
   } catch (e) {
     error(formatError(e, 'Failed to save beta tester preference'))
   }
@@ -102,7 +97,7 @@ function installButtonLabel() {
       </div>
 
       <div v-else class="flex items-center gap-3">
-        <BaseButton :loading="checking" :disabled="checking" @click="checkForUpdate">
+        <BaseButton :loading="checking" :disabled="checking" @click="() => checkForUpdate()">
           {{ checking ? 'Checking...' : 'Check for Updates' }}
         </BaseButton>
         <span v-if="!checking" class="text-sm text-muted">SkillScout is up to date.</span>
