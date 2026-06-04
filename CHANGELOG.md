@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/anthonyiles/SkillScout/compare/skillscout-v0.4.0...skillscout-v0.4.1) (2026-06-04)
+
+
+### Bug Fixes
+
+* bake prod GitHub OAuth client ID into binary ([#31](https://github.com/anthonyiles/SkillScout/issues/31)) ([a9f351f](https://github.com/anthonyiles/SkillScout/commit/a9f351fff3de86754776fcb468e82615188aa0ce))
+
 ## [0.4.0](https://github.com/anthonyiles/SkillScout/compare/skillscout-v0.3.1...skillscout-v0.4.0) (2026-05-31)
 
 
