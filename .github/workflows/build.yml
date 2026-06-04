@@ -58,6 +58,7 @@ jobs:
       - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITHUB_CLIENT_ID can be set as a secret to override the baked-in default (useful for forks)
           GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
           # Code signing (macOS/Windows) — add secrets here when ready:
           # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
