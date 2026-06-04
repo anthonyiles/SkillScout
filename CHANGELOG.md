@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.3.2](https://github.com/anthonyiles/SkillScout/compare/skillscout-v0.3.1...skillscout-v0.3.2) (2026-06-04)
+
+
+### Bug Fixes
+
+* align E2E setup with working Tauri v2 webdriver examples ([be2c00c](https://github.com/anthonyiles/SkillScout/commit/be2c00c37455059e82085c46185ac76bcb41b6c5))
+* bake prod GitHub OAuth client ID into binary ([89fd0f0](https://github.com/anthonyiles/SkillScout/commit/89fd0f03726f75aed652bf9d260e77977595e46c))
+* bake prod GitHub OAuth client ID into binary ([#31](https://github.com/anthonyiles/SkillScout/issues/31)) ([a9f351f](https://github.com/anthonyiles/SkillScout/commit/a9f351fff3de86754776fcb468e82615188aa0ce))
+* drop Ubuntu E2E, use waitForExist and JS clicks for Windows ([6fdb92c](https://github.com/anthonyiles/SkillScout/commit/6fdb92c9afe50efb4056ef44f7a0a8f25f69cb06))
+* enable devtools feature for E2E builds and fix Linux browserName ([def5b66](https://github.com/anthonyiles/SkillScout/commit/def5b66d0debaeb33e22a4634d67c6730fc2c591))
+* explicitly navigate to tauri://localhost/ before running E2E tests ([1e30f50](https://github.com/anthonyiles/SkillScout/commit/1e30f50ff6c9bde54a84f3ede4cb06802af6382f))
+* pass signing key to E2E tauri build step ([51a5d98](https://github.com/anthonyiles/SkillScout/commit/51a5d98a72349909e13399a88840185830582acc))
+* resolve all three E2E test failures ([d436a3a](https://github.com/anthonyiles/SkillScout/commit/d436a3adfe1a7d7a406e929c0d462662efc1c00b))
+* resolve E2E CI failures on all platforms ([f55bd33](https://github.com/anthonyiles/SkillScout/commit/f55bd335e1ae68d1e9c4cf253d284f2015a654c5))
+* resolve release pipeline — updater routing, signing, and CI configuration ([95553c9](https://github.com/anthonyiles/SkillScout/commit/95553c904b01243b510199ad9389a6ddbb5d28d2))
+* switch to ubuntu-24.04 for E2E and maximize window before tests ([11119ec](https://github.com/anthonyiles/SkillScout/commit/11119ec774cb3bc7564b930265ab55415d99026a))
+* wait for Tauri frontend to load before running E2E tests ([9f22333](https://github.com/anthonyiles/SkillScout/commit/9f22333fbba70dca07ac55e47fa946dee83560f3))
+* wrap latest.json fetch in try-catch to avoid opaque 500 on network error ([f9cac31](https://github.com/anthonyiles/SkillScout/commit/f9cac3197a30acf746f9bbd15262821b76c7147c))
+
 ## [0.4.1](https://github.com/anthonyiles/SkillScout/compare/skillscout-v0.4.0...skillscout-v0.4.1) (2026-06-04)
 
 
