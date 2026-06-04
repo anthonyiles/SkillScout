@@ -9,9 +9,21 @@ interface GitHubAsset {
 }
 
 interface GitHubRelease {
+  tag_name: string
   draft: boolean
   prerelease: boolean
   assets: GitHubAsset[]
+}
+
+function semverFromTag(tag: string): [number, number, number] {
+  const m = tag.match(/(\d+)\.(\d+)\.(\d+)/)
+  return m ? [+m[1], +m[2], +m[3]] : [0, 0, 0]
+}
+
+function byVersionDesc(a: GitHubRelease, b: GitHubRelease): number {
+  const [aMaj, aMin, aPat] = semverFromTag(a.tag_name)
+  const [bMaj, bMin, bPat] = semverFromTag(b.tag_name)
+  return (bMaj - aMaj) || (bMin - aMin) || (bPat - aPat)
 }
 
 const JSON_HEADERS = {
@@ -33,9 +45,9 @@ async function fetchRelease(repo: string, channel: string, githubHeaders: Record
   if (!res.ok) throw new Error(`GitHub API error: ${res.status}`)
   const releases = await res.json() as GitHubRelease[]
   if (channel === 'beta') {
-    return releases.find(r => !r.draft) ?? null
+    return releases.filter(r => !r.draft).sort(byVersionDesc)[0] ?? null
   }
-  return releases.find(r => !r.draft && !r.prerelease) ?? null
+  return releases.filter(r => !r.draft && !r.prerelease).sort(byVersionDesc)[0] ?? null
 }
 
 export default {
