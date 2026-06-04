@@ -44,7 +44,9 @@ export const config: Options.Testrunner = {
   capabilities: [
     {
       maxInstances: 1,
-      browserName: 'chrome',
+      // WebKitWebDriver (Linux) is not Chrome; use '' so capabilities match.
+      // ChromeDriver (Windows) requires 'chrome'.
+      browserName: platform() === 'linux' ? '' : 'chrome',
       'tauri:options': {
         application: getTauriAppPath(),
       },
