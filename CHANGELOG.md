@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.3](https://github.com/anthonyiles/SkillScout/compare/skillscout-v0.4.2...skillscout-v0.4.3) (2026-06-11)
+
+
+### Bug Fixes
+
+* prevent stable/beta update channel cache collision in worker ([4fd3094](https://github.com/anthonyiles/SkillScout/commit/4fd3094c5e10a5c39f2ee5250dcd31d3f7953b66))
+* promote worker cache fix to beta ([47ba3d8](https://github.com/anthonyiles/SkillScout/commit/47ba3d8c2ef1bfbc967102c00ea15bddd89f3121))
+* promote worker semver sort fix to beta ([b49904a](https://github.com/anthonyiles/SkillScout/commit/b49904a24af5b32bc5ec898d0ed88b3a13d724fc))
+* remove public cache on update worker to prevent channel collision ([bfd8d8d](https://github.com/anthonyiles/SkillScout/commit/bfd8d8df429a679f6cb167eba298026791c0f58e))
+* sort releases by semver in update worker ([8acbd51](https://github.com/anthonyiles/SkillScout/commit/8acbd51700a3cd8e8a8090fd0c1b8a3dd1a4f97a))
+* sort releases by semver in update worker, not GitHub API order ([3abccd4](https://github.com/anthonyiles/SkillScout/commit/3abccd4a4c85f2ca0133a3036297c3020045ae59))
+
 ## [0.4.2](https://github.com/anthonyiles/SkillScout/compare/skillscout-v0.4.1...skillscout-v0.4.2) (2026-06-04)
 
 
