@@ -186,8 +186,12 @@ function toggleAgent(project: LocalProject, agentId: string) {
 }
 
 async function browseForProject(project: LocalProject) {
-  const selected = await pickProjectFolder()
-  if (selected) project.path = selected
+  try {
+    const selected = await pickProjectFolder()
+    if (selected) project.path = selected
+  } catch (err: unknown) {
+    error(formatError(err, 'Failed to open folder picker'))
+  }
 }
 
 function getProjectName(path: string) {
