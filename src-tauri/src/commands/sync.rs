@@ -31,6 +31,21 @@ fn canonical_repo_url(url: &str) -> String {
     trimmed.strip_suffix(".git").unwrap_or(trimmed).to_string()
 }
 
+/// Wraps a failed git command's stderr in a `SkillScoutError`, replacing
+/// known-cryptic SSH errors with an actionable message for the user.
+fn git_command_error(action: &str, stderr: &str) -> SkillScoutError {
+    if stderr.contains("Host key verification failed") {
+        return SkillScoutError::GitOperationFailed(format!(
+            "{} failed: GitHub's SSH host key is not trusted on this machine. \
+            Switch the repository URL in Settings to the HTTPS form \
+            (https://github.com/org/repo) to avoid SSH entirely, or run \
+            `ssh -T git@github.com` in a terminal once to trust GitHub's host key.",
+            action
+        ));
+    }
+    SkillScoutError::GitOperationFailed(format!("{} failed: {}", action, stderr))
+}
+
 fn validate_repo_url(url: &str) -> Result<(), SkillScoutError> {
     let url = url.trim();
     let url_normalized = url.strip_suffix(".git").unwrap_or(url);
@@ -108,7 +123,7 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
 
                 if !output.status.success() {
                     let stderr = String::from_utf8_lossy(&output.stderr);
-                    return Err(SkillScoutError::GitOperationFailed(format!("Git clone failed: {}", stderr)));
+                    return Err(git_command_error("Git clone", &stderr));
                 }
             } else {
                 let output = git_command()
@@ -120,7 +135,7 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
 
                 if !output.status.success() {
                     let stderr = String::from_utf8_lossy(&output.stderr);
-                    return Err(SkillScoutError::GitOperationFailed(format!("Git pull failed: {}", stderr)));
+                    return Err(git_command_error("Git pull", &stderr));
                 }
             }
         } else {
@@ -133,7 +148,7 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                return Err(SkillScoutError::GitOperationFailed(format!("Git clone failed: {}", stderr)));
+                return Err(git_command_error("Git clone", &stderr));
             }
         }
 
@@ -516,6 +531,28 @@ mod tests {
     #[test]
     fn safe_filename_accepts_subdirectory_name() {
         assert!(is_safe_filename("skills/my-skill.md"));
+    }
+
+    // ── git_command_error ───────────────────────────────────────────────────
+
+    #[test]
+    fn git_command_error_explains_host_key_failure() {
+        let err = git_command_error(
+            "Git clone",
+            "Host key verification failed.\nfatal: Could not read from remote repository.",
+        );
+        let msg = err.to_string();
+        assert!(msg.contains("SSH host key is not trusted"));
+        assert!(msg.contains("https://github.com/org/repo"));
+    }
+
+    #[test]
+    fn git_command_error_passes_through_other_errors() {
+        let err = git_command_error("Git pull", "fatal: not a git repository");
+        assert_eq!(
+            err.to_string(),
+            "Git operation failed: Git pull failed: fatal: not a git repository"
+        );
     }
 
     // ── validate_repo_url ───────────────────────────────────────────────────
