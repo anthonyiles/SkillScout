@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useToast } from '../composables/useToast'
+import { formatError } from '../utils/formatError'
 import { checkGithubAuth, logoutGithub } from '../api'
 import logoUrl from '../assets/logo.png'
 import BaseButton from './BaseButton.vue'
@@ -18,8 +19,8 @@ onMounted(async () => {
   try {
     isAuthenticated.value = await checkGithubAuth()
   } catch (e) {
-    console.error('Failed to verify GitHub auth:', e)
     isAuthenticated.value = false
+    error(formatError(e, 'Could not verify GitHub authentication. Please reconnect.'))
   }
 })
 

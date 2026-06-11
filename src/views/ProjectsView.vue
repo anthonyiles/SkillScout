@@ -10,6 +10,7 @@ import {
   getRepositoryItems,
   getItemSelections,
   applySkills,
+  pickProjectFolder,
 } from '../api'
 import type { RepositoryItem, ItemSelection, SyncTask } from '../api'
 import TickBox from '../components/TickBox.vue'
@@ -184,6 +185,15 @@ function toggleAgent(project: LocalProject, agentId: string) {
   }
 }
 
+async function browseForProject(project: LocalProject) {
+  try {
+    const selected = await pickProjectFolder()
+    if (selected) project.path = selected
+  } catch (err: unknown) {
+    error(formatError(err, 'Failed to open folder picker'))
+  }
+}
+
 function getProjectName(path: string) {
   if (!path) return 'New Project'
   const parts = path.split(/[/\\]/).filter(Boolean)
@@ -211,8 +221,12 @@ function getProjectName(path: string) {
             </BaseButton>
           </template>
 
-          <div class="flex gap-4">
-            <InputField label="Local Path" v-model="project.path" placeholder="/home/user/projects/app" class="[flex:2]" />
+          <div class="flex gap-2 items-end">
+            <InputField label="Local Path" v-model="project.path" placeholder="/home/user/projects/app" class="flex-1" />
+            <BaseButton variant="secondary" @click="browseForProject(project)" title="Browse for folder">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              Browse
+            </BaseButton>
           </div>
 
           <div class="flex flex-col gap-1 mb-3 mt-3">

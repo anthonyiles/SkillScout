@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
 import type { Agent, PrStatus } from './types'
 
 // Shared response types matching Rust model serialization
@@ -67,6 +68,12 @@ export function checkGithubAuth(): Promise<boolean> {
 
 export function logoutGithub(): Promise<void> {
   return invoke('logout_github')
+}
+
+// File system
+
+export function pickProjectFolder(): Promise<string | null> {
+  return dialogOpen({ directory: true, multiple: false, title: 'Select Project Folder' })
 }
 
 // Settings

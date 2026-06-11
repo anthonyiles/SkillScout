@@ -1,4 +1,6 @@
 use std::process::Command;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::path::Path;
 use tauri::{Manager, State, Emitter};
 use std::fs;
@@ -10,6 +12,19 @@ use crate::models::{SyncTask, RepositoryItem, FileHash};
 use crate::utils::filesystem::copy_dir_all;
 use crate::db::AppState;
 use rusqlite::params;
+
+/// CREATE_NO_WINDOW: prevents a console window from flashing when spawning
+/// git on Windows from a GUI app.
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+#[allow(unused_mut)]
+fn git_command() -> Command {
+    let mut cmd = Command::new("git");
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd
+}
 
 fn canonical_repo_url(url: &str) -> String {
     let trimmed = url.trim().trim_end_matches('/');
@@ -64,7 +79,7 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
         let git_dir = repo_dir.join(".git");
 
         if git_dir.exists() {
-            let remote_output = Command::new("git")
+            let remote_output = git_command()
                 .arg("-C")
                 .arg(&repo_dir)
                 .arg("remote")
@@ -84,7 +99,7 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
                 fs::remove_dir_all(&repo_dir)
                     .map_err(|e| SkillScoutError::FileSystemError(format!("Failed to clear old repo: {}", e)))?;
 
-                let output = Command::new("git")
+                let output = git_command()
                     .arg("clone")
                     .arg(&repo_url)
                     .arg(&repo_dir)
@@ -96,7 +111,7 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
                     return Err(SkillScoutError::GitOperationFailed(format!("Git clone failed: {}", stderr)));
                 }
             } else {
-                let output = Command::new("git")
+                let output = git_command()
                     .arg("-C")
                     .arg(&repo_dir)
                     .arg("pull")
@@ -109,7 +124,7 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
                 }
             }
         } else {
-            let output = Command::new("git")
+            let output = git_command()
                 .arg("clone")
                 .arg(&repo_url)
                 .arg(&repo_dir)
