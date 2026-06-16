@@ -13,8 +13,9 @@ SkillScout connects to a GitHub repository that acts as your team's central libr
 - **Manage unmanaged items** — Discover local skills/rules that aren't tracked in the repo yet and promote them back via a GitHub Pull Request — directly from the app.
 - **Automatic sync** — Background sync pulls the latest changes from your repo every 30 minutes. Manual sync is also available.
 - **GitHub OAuth** — Authenticates via the GitHub Device Flow. Tokens are stored securely in your OS keyring (no plaintext secrets on disk).
-- **Project registry** — Register multiple local project directories and manage which skills/rules are applied to each independently.
+- **Project registry** — Register multiple local project directories and manage which skills/rules are applied to each independently. On macOS, a folder picker is provided to grant the necessary filesystem permissions.
 - **Update detection** — Tracks content hashes so the UI shows when an applied skill/rule has been updated upstream.
+- **Auto-update** — The app checks for new releases on startup and lets you install them in-app. A beta tester toggle in Settings opts you into pre-release builds.
 
 ---
 
@@ -50,7 +51,7 @@ Follow the official Tauri v2 guide for your OS:
 
 ## GitHub OAuth App
 
-SkillScout uses the GitHub Device Flow for authentication. The app ships with a pre-configured developer OAuth App — contributors don't need to register their own. The client ID is provided via `.env` for local development and via a GitHub Actions secret for release builds.
+SkillScout uses the GitHub Device Flow for authentication. The app ships with the production OAuth client ID baked into the binary — contributors don't need to register their own app or set up any environment variables to build and run it.
 
 <details>
 <summary>Registering your own OAuth App (forks / self-hosted deployments only)</summary>
@@ -81,23 +82,15 @@ cd skillscout
 npm install
 ```
 
-### 3. Configure environment variables
-
-Copy `.env.example` to `.env` — it contains the developer app client ID needed to authenticate:
-
-```bash
-cp .env.example .env
-```
-
-> The client ID is baked into the binary at compile time. Do **not** commit `.env`.
-
-### 4. Run in development mode
+### 3. Run in development mode
 
 ```bash
 npm run tauri dev
 ```
 
 This starts the Vite dev server and the Tauri shell together.
+
+> **Optional:** Copy `.env.example` to `.env` if you want to override the OAuth client ID (e.g. for a fork using its own GitHub OAuth App). Do **not** commit `.env`.
 
 ---
 
@@ -133,6 +126,7 @@ Once you have a repository set up, paste its URL into **Settings** inside SkillS
 4. **Register projects** — Go to **Projects** and add the local directories you want to manage.
 5. **Apply skills/rules** — Go to **Skills** or **Rules** and toggle the checkboxes to apply items to your projects. Files are copied immediately into the correct agent subdirectory.
 6. **Promote local items** — Go to **Unmanaged** to discover local skills/rules not yet in the repo. Click **Promote** to open a PR from within the app.
+7. **Updates** — The app checks for updates on startup. You can also trigger a manual check in **Settings**. Enable **Beta Tester** in Settings to receive pre-release builds.
 
 ---
 
@@ -143,7 +137,7 @@ skillscout/
 ├── src/                   # Vue 3 frontend
 │   ├── views/             # One component per route
 │   ├── components/        # Reusable UI primitives
-│   ├── composables/       # Shared state (e.g. useToast)
+│   ├── composables/       # Shared state (e.g. useToast, useUpdater)
 │   └── router.ts          # Vue Router config
 ├── src-tauri/             # Rust / Tauri backend
 │   ├── src/
@@ -154,6 +148,7 @@ skillscout/
 │   │   ├── github/        # Low-level GitHub REST API helpers
 │   │   └── utils/         # Keyring auth, filesystem helpers
 │   └── tauri.conf.json    # App metadata and bundle config
+├── worker/                # Cloudflare Worker — serves the Tauri update manifest
 ├── package.json
 └── vite.config.ts
 ```
@@ -167,6 +162,9 @@ skillscout/
 | `npm run tauri dev` | Run the full app in dev mode |
 | `npm run dev` | Start Vite frontend only (port 1420) |
 | `npm run build` | TypeScript check + Vite build |
+| `npm test` | Run Vitest in watch mode |
+| `npm run test:run` | Run Vitest once (CI mode) |
+| `npm run coverage` | Run Vitest with V8 coverage report |
 
 **Rust (run inside `src-tauri/`):**
 
