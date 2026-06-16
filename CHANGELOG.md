@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/anthonyiles/SkillScout/compare/skillscout-v0.2.0...skillscout-v0.2.1) (2026-06-16)
+
+
+### Bug Fixes
+
+* pass target-branch to release-please so PRs target the correct branch ([172968f](https://github.com/anthonyiles/SkillScout/commit/172968f0af0d491438f63dfdddf3cf5845f0a0fa))
+* use PAT for release-please to trigger build workflow ([2a2d269](https://github.com/anthonyiles/SkillScout/commit/2a2d2699f0b610087169449a97a30619268d31b4))
+
 ## [0.2.0](https://github.com/anthonyiles/SkillScout/compare/skillscout-v0.1.0...skillscout-v0.2.0) (2026-05-30)
 
 
