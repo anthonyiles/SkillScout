@@ -83,7 +83,7 @@ pub(crate) fn db_reset_agents(conn: &mut Connection) -> Result<(), String> {
     // Preserve project→agent associations for the default agent IDs so that
     // projects do not lose their assignments after a reset.
     let mut stmt = tx.prepare(
-        "SELECT project_id, agent_id FROM project_agents WHERE agent_id IN ('cursor','jetbrains','claude')"
+        "SELECT project_id, agent_id FROM project_agents WHERE agent_id IN ('windsurf','jetbrains','claude')"
     ).map_err(|e| { eprintln!("Failed to read project_agents: {}", e); "Failed to reset agents".to_string() })?;
     let preserved: Vec<(i64, String)> = stmt
         .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
@@ -96,7 +96,7 @@ pub(crate) fn db_reset_agents(conn: &mut Connection) -> Result<(), String> {
         .map_err(|e| { eprintln!("Failed to clear agents: {}", e); "Failed to reset agents".to_string() })?;
     tx.execute_batch("
         INSERT INTO agents (id, name, skills_path, rules_path) VALUES
-            ('cursor', 'Cursor', '.cursor/skills', '.cursor/rules'),
+            ('windsurf', 'Windsurf', '.windsurf/skills', '.windsurf/rules'),
             ('jetbrains', 'JetBrains AI', '.agents/skills', '.agents/rules'),
             ('claude', 'Claude Code', '.claude/skills', '.claude/rules');
     ").map_err(|e| { eprintln!("Failed to seed agents: {}", e); "Failed to reset agents".to_string() })?;
@@ -280,7 +280,7 @@ mod tests {
         let conn = open_test_db();
         let agents = db_get_agents(&conn).unwrap();
         assert_eq!(agents.len(), 3);
-        assert!(agents.iter().any(|a| a.id == "cursor"));
+        assert!(agents.iter().any(|a| a.id == "windsurf"));
         assert!(agents.iter().any(|a| a.id == "jetbrains"));
         assert!(agents.iter().any(|a| a.id == "claude"));
     }
@@ -341,11 +341,11 @@ mod tests {
     fn save_project_inserts_and_assigns_id() {
         let mut conn = open_test_db();
         let path = abs_test_path("project");
-        let project = Project { id: None, path: path.clone(), agent_ids: vec!["cursor".to_string()] };
+        let project = Project { id: None, path: path.clone(), agent_ids: vec!["windsurf".to_string()] };
         let saved = db_save_project(&mut conn, &project).unwrap();
         assert!(saved.id.is_some());
         assert_eq!(saved.path, path);
-        assert_eq!(saved.agent_ids, vec!["cursor"]);
+        assert_eq!(saved.agent_ids, vec!["windsurf"]);
     }
 
     #[test]

@@ -104,7 +104,7 @@ pub(crate) fn seed_defaults(conn: &Connection) -> rusqlite::Result<()> {
     if is_first_run.is_err() {
         conn.execute_batch("
             INSERT OR IGNORE INTO agents (id, name, skills_path, rules_path) VALUES
-                ('cursor', 'Cursor', '.cursor/skills', '.cursor/rules'),
+                ('windsurf', 'Windsurf', '.windsurf/skills', '.windsurf/rules'),
                 ('jetbrains', 'JetBrains AI', '.agents/skills', '.agents/rules'),
                 ('claude', 'Claude Code', '.claude/skills', '.claude/rules');
 
@@ -215,7 +215,7 @@ mod tests {
 
         // Inserting a project_agents row referencing a non-existent project should fail
         let result = conn.execute(
-            "INSERT INTO project_agents (project_id, agent_id) VALUES (9999, 'cursor')",
+            "INSERT INTO project_agents (project_id, agent_id) VALUES (9999, 'windsurf')",
             [],
         );
         assert!(result.is_err());
