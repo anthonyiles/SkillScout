@@ -51,7 +51,7 @@ const mockProjects = [
   { id: 1, path: '/home/user/alpha', agentIds: ['cursor'] },
 ]
 const mockAgents = [
-  { id: 'cursor', name: 'Cursor', skillsPath: '.cursor/skills', rulesPath: '.cursor/rules' },
+  { id: 'cursor', name: 'Cursor', skillsPath: '.cursor/skills', rulesPath: '.cursor/rules', mcpPath: '.cursor/mcp.json', globalMcpPath: '~/.cursor/mcp.json' },
 ]
 
 describe('ProjectsView', () => {

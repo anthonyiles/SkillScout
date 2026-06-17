@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import ProjectsView from './views/ProjectsView.vue'
 import SkillsView from './views/SkillsView.vue'
 import RulesView from './views/RulesView.vue'
+import McpView from './views/McpView.vue'
 import AgentsView from './views/AgentsView.vue'
 import SettingsView from './views/SettingsView.vue'
 import UnmanagedView from './views/UnmanagedView.vue'
@@ -23,6 +24,11 @@ const router = createRouter({
       path: '/rules',
       name: 'rules',
       component: RulesView
+    },
+    {
+      path: '/mcp',
+      name: 'mcp',
+      component: McpView
     },
     {
       path: '/unmanaged',

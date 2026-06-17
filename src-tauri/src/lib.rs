@@ -10,6 +10,7 @@ use commands::github::{check_pr_status, promote_item};
 use commands::sync::{apply_skills, check_existing, get_project_file_hashes, get_project_files, sync_repo};
 use commands::state::{get_setting, set_setting, get_agents, save_agent, delete_agent, reset_agents_to_defaults, get_projects, save_project, delete_project};
 use commands::items::{get_repository_items, get_item_selections, toggle_item_selection, update_applied_sha, get_promoted_items, add_promoted_item, remove_promoted_item};
+use commands::mcp::{apply_mcp_servers, get_mcp_selections, set_mcp_selection};
 use tauri::Manager;
 use std::sync::Mutex;
 
@@ -61,7 +62,8 @@ pub fn run() {
             sync_repo, check_existing, apply_skills, get_project_files, get_project_file_hashes,
             start_github_device_flow, poll_github_token, check_github_auth, logout_github, promote_item, check_pr_status,
             get_setting, set_setting, get_agents, save_agent, delete_agent, reset_agents_to_defaults, get_projects, save_project, delete_project,
-            get_repository_items, get_item_selections, toggle_item_selection, update_applied_sha, get_promoted_items, add_promoted_item, remove_promoted_item
+            get_repository_items, get_item_selections, toggle_item_selection, update_applied_sha, get_promoted_items, add_promoted_item, remove_promoted_item,
+            apply_mcp_servers, get_mcp_selections, set_mcp_selection
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

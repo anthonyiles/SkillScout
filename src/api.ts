@@ -51,6 +51,34 @@ export interface SyncTask {
   remove: boolean
 }
 
+export interface McpSelection {
+  itemId: string
+  scope: string
+  projectId: number
+}
+
+export interface McpApplyTask {
+  targetPath: string
+  serverKey: string
+  config: string
+  remove: boolean
+  force: boolean
+}
+
+export interface McpClash {
+  targetPath: string
+  serverKey: string
+  existingConfig: string
+  incomingConfig: string
+}
+
+export interface McpApplyResult {
+  applied: number
+  adopted: number
+  removed: number
+  clashes: McpClash[]
+}
+
 // Auth
 
 export function startGithubDeviceFlow(): Promise<{ userCode: string; verificationUri: string; deviceCode: string; interval: number }> {
@@ -174,4 +202,18 @@ export function promoteItem(
 
 export function checkPrStatus(prUrl: string): Promise<PrStatus> {
   return invoke('check_pr_status', { prUrl })
+}
+
+// MCP servers
+
+export function getMcpSelections(): Promise<McpSelection[]> {
+  return invoke('get_mcp_selections')
+}
+
+export function setMcpSelection(itemId: string, scope: string, projectId: number, selected: boolean): Promise<void> {
+  return invoke('set_mcp_selection', { itemId, scope, projectId, selected })
+}
+
+export function applyMcpServers(tasks: McpApplyTask[]): Promise<McpApplyResult> {
+  return invoke('apply_mcp_servers', { tasks })
 }
