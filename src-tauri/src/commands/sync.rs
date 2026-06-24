@@ -205,7 +205,8 @@ pub async fn sync_repo(app: tauri::AppHandle, state: State<'_, AppState>, repo_u
         
         read_folder("skills");
         read_folder("rules");
-        
+        read_folder("mcp-servers");
+
         Ok::<Vec<RepositoryItem>, SkillScoutError>(skills)
     }).await.map_err(|e| {
         eprintln!("Spawn blocking error: {}", e);

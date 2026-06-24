@@ -48,7 +48,9 @@ function addAgent() {
     id: uniqueId,
     name: 'New Agent',
     skillsPath: '',
-    rulesPath: ''
+    rulesPath: '',
+    mcpPath: '',
+    globalMcpPath: ''
   })
 }
 
@@ -92,7 +94,7 @@ async function executeReset() {
     </template>
 
     <div class="bg-card/70 backdrop-blur-md border border-white/10 p-6 rounded-md mb-6">
-      <p class="text-sm text-muted mb-4">Define the relative folder paths where skills and rules should be copied for each AI agent.</p>
+      <p class="text-sm text-muted mb-4">Define the relative folder paths where skills and rules should be copied for each AI agent. MCP paths point to each agent's <code class="text-accent">mcp.json</code> — leave blank if the agent has no MCP support.</p>
 
       <div class="flex flex-col gap-4 mb-4">
         <CardItem v-for="agent in agents" :key="agent.id">
@@ -110,9 +112,15 @@ async function executeReset() {
             </BaseButton>
           </template>
 
-          <div class="flex gap-4">
-            <InputField label="Skills Target Path" v-model="agent.skillsPath" placeholder="e.g. .cursor/skills" />
-            <InputField label="Rules Target Path" v-model="agent.rulesPath" placeholder="e.g. .cursor/rules" />
+          <div class="flex flex-col gap-4">
+            <div class="flex gap-4">
+              <InputField label="Skills Target Path" v-model="agent.skillsPath" placeholder="e.g. .windsurf/skills" />
+              <InputField label="Rules Target Path" v-model="agent.rulesPath" placeholder="e.g. .windsurf/rules" />
+            </div>
+            <div class="flex gap-4">
+              <InputField label="Project MCP Path" v-model="agent.mcpPath" placeholder="e.g. .windsurf/mcp.json" />
+              <InputField label="Global MCP Path" v-model="agent.globalMcpPath" placeholder="e.g. ~/.codeium/windsurf/mcp_config.json" />
+            </div>
           </div>
         </CardItem>
       </div>

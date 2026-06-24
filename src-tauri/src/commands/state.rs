@@ -42,7 +42,7 @@ pub(crate) fn db_set_setting(conn: &Connection, key: &str, value: &str) -> Resul
 }
 
 pub(crate) fn db_get_agents(conn: &Connection) -> Result<Vec<Agent>, String> {
-    let mut stmt = conn.prepare("SELECT id, name, skills_path, rules_path FROM agents")
+    let mut stmt = conn.prepare("SELECT id, name, skills_path, rules_path, mcp_path, global_mcp_path FROM agents")
         .map_err(|e| { eprintln!("Failed to prepare agents query: {}", e); "Failed to load agents".to_string() })?;
 
     let agents_iter = stmt.query_map([], |row| {
@@ -51,6 +51,8 @@ pub(crate) fn db_get_agents(conn: &Connection) -> Result<Vec<Agent>, String> {
             name: row.get(1)?,
             skills_path: row.get(2)?,
             rules_path: row.get(3)?,
+            mcp_path: row.get(4)?,
+            global_mcp_path: row.get(5)?,
         })
     }).map_err(|e| { eprintln!("Failed to query agents: {}", e); "Failed to load agents".to_string() })?;
 
@@ -63,9 +65,9 @@ pub(crate) fn db_get_agents(conn: &Connection) -> Result<Vec<Agent>, String> {
 
 pub(crate) fn db_save_agent(conn: &Connection, agent: &Agent) -> Result<(), String> {
     conn.execute(
-        "INSERT INTO agents (id, name, skills_path, rules_path) VALUES (?1, ?2, ?3, ?4)
-         ON CONFLICT(id) DO UPDATE SET name = ?2, skills_path = ?3, rules_path = ?4",
-        params![agent.id, agent.name, agent.skills_path, agent.rules_path],
+        "INSERT INTO agents (id, name, skills_path, rules_path, mcp_path, global_mcp_path) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(id) DO UPDATE SET name = ?2, skills_path = ?3, rules_path = ?4, mcp_path = ?5, global_mcp_path = ?6",
+        params![agent.id, agent.name, agent.skills_path, agent.rules_path, agent.mcp_path, agent.global_mcp_path],
     ).map_err(|e| { eprintln!("Failed to save agent: {}", e); "Failed to save agent".to_string() })?;
     Ok(())
 }
@@ -95,10 +97,10 @@ pub(crate) fn db_reset_agents(conn: &mut Connection) -> Result<(), String> {
     tx.execute("DELETE FROM agents", [])
         .map_err(|e| { eprintln!("Failed to clear agents: {}", e); "Failed to reset agents".to_string() })?;
     tx.execute_batch("
-        INSERT INTO agents (id, name, skills_path, rules_path) VALUES
-            ('windsurf', 'Windsurf', '.windsurf/skills', '.windsurf/rules'),
-            ('jetbrains', 'JetBrains AI', '.agents/skills', '.agents/rules'),
-            ('claude', 'Claude Code', '.claude/skills', '.claude/rules');
+        INSERT INTO agents (id, name, skills_path, rules_path, mcp_path, global_mcp_path) VALUES
+            ('windsurf', 'Windsurf', '.windsurf/skills', '.windsurf/rules', '.windsurf/mcp.json', '~/.windsurf/mcp.json'),
+            ('jetbrains', 'JetBrains AI', '.agents/skills', '.agents/rules', '', ''),
+            ('claude', 'Claude Code', '.claude/skills', '.claude/rules', '.claude/mcp.json', '~/.claude/mcp.json');
     ").map_err(|e| { eprintln!("Failed to seed agents: {}", e); "Failed to reset agents".to_string() })?;
 
     for (project_id, agent_id) in preserved {
@@ -174,6 +176,10 @@ pub(crate) fn db_save_project(conn: &mut Connection, project: &Project) -> Resul
 }
 
 pub(crate) fn db_delete_project(conn: &Connection, id: i64) -> Result<(), String> {
+    // mcp_selections has no FK on project_id (0 is the global sentinel), so
+    // project-scoped rows must be cleaned up explicitly.
+    conn.execute("DELETE FROM mcp_selections WHERE scope = 'project' AND project_id = ?1", params![id])
+        .map_err(|e| { eprintln!("Failed to clear project MCP selections: {}", e); "Failed to delete project".to_string() })?;
     conn.execute("DELETE FROM projects WHERE id = ?1", params![id])
         .map_err(|e| { eprintln!("Failed to delete project: {}", e); "Failed to delete project".to_string() })?;
     Ok(())
@@ -293,10 +299,14 @@ mod tests {
             name: "Custom Agent".to_string(),
             skills_path: ".custom/skills".to_string(),
             rules_path: ".custom/rules".to_string(),
+            mcp_path: ".custom/mcp.json".to_string(),
+            global_mcp_path: "~/.custom/mcp.json".to_string(),
         };
         db_save_agent(&conn, &agent).unwrap();
         let agents = db_get_agents(&conn).unwrap();
-        assert!(agents.iter().any(|a| a.id == "custom"));
+        let saved = agents.iter().find(|a| a.id == "custom").unwrap();
+        assert_eq!(saved.mcp_path, ".custom/mcp.json");
+        assert_eq!(saved.global_mcp_path, "~/.custom/mcp.json");
     }
 
     #[test]
@@ -307,6 +317,8 @@ mod tests {
             name: "Cursor Updated".to_string(),
             skills_path: ".cursor/skills".to_string(),
             rules_path: ".cursor/rules".to_string(),
+            mcp_path: String::new(),
+            global_mcp_path: String::new(),
         };
         db_save_agent(&conn, &agent).unwrap();
         agent.name = "Cursor Updated Again".to_string();

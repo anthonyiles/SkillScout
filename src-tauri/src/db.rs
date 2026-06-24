@@ -77,18 +77,36 @@ pub(crate) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (repository_item_id) REFERENCES repository_items(id) ON DELETE SET NULL
         );
+
+        -- MCP server selections. Unlike item_selections, a server can be selected
+        -- both globally (scope='global', project_id=0) and per-project independently,
+        -- so project_id is part of the key and carries no FK (0 is the global sentinel).
+        -- Project-scoped rows are cleaned up explicitly when a project is deleted.
+        CREATE TABLE IF NOT EXISTS mcp_selections (
+            item_id TEXT NOT NULL,
+            scope TEXT NOT NULL CHECK (scope IN ('global', 'project')),
+            project_id INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (item_id, scope, project_id),
+            FOREIGN KEY (item_id) REFERENCES repository_items(id) ON DELETE CASCADE
+        );
         "
     )?;
 
-    // Migration for column added after initial schema; ignore only "duplicate column" errors
-    // which mean the column already exists from a previous run.
-    match conn.execute("ALTER TABLE promoted_items ADD COLUMN sub_folder TEXT", []) {
-        Ok(_) => {}
-        Err(rusqlite::Error::SqliteFailure(_, Some(ref msg))) if msg.contains("duplicate column") => {}
-        // rusqlite occasionally returns None for the extended message on some SQLite builds;
-        // any non-message SqliteFailure from ADD COLUMN is also a duplicate-column variant.
-        Err(rusqlite::Error::SqliteFailure(_, None)) => {}
-        Err(e) => return Err(e),
+    // Migrations for columns added after the initial schema; ignore only
+    // "duplicate column" errors, which mean the column already exists.
+    for ddl in [
+        "ALTER TABLE promoted_items ADD COLUMN sub_folder TEXT",
+        "ALTER TABLE agents ADD COLUMN mcp_path TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE agents ADD COLUMN global_mcp_path TEXT NOT NULL DEFAULT ''",
+    ] {
+        match conn.execute(ddl, []) {
+            Ok(_) => {}
+            Err(rusqlite::Error::SqliteFailure(_, Some(ref msg))) if msg.contains("duplicate column") => {}
+            // rusqlite occasionally returns None for the extended message on some SQLite builds;
+            // any non-message SqliteFailure from ADD COLUMN is also a duplicate-column variant.
+            Err(rusqlite::Error::SqliteFailure(_, None)) => {}
+            Err(e) => return Err(e),
+        }
     }
 
     Ok(())
@@ -103,12 +121,32 @@ pub(crate) fn seed_defaults(conn: &Connection) -> rusqlite::Result<()> {
 
     if is_first_run.is_err() {
         conn.execute_batch("
-            INSERT OR IGNORE INTO agents (id, name, skills_path, rules_path) VALUES
-                ('windsurf', 'Windsurf', '.windsurf/skills', '.windsurf/rules'),
-                ('jetbrains', 'JetBrains AI', '.agents/skills', '.agents/rules'),
-                ('claude', 'Claude Code', '.claude/skills', '.claude/rules');
+            INSERT OR IGNORE INTO agents (id, name, skills_path, rules_path, mcp_path, global_mcp_path) VALUES
+                ('windsurf', 'Windsurf', '.windsurf/skills', '.windsurf/rules', '.windsurf/mcp.json', '~/.windsurf/mcp.json'),
+                ('jetbrains', 'JetBrains AI', '.agents/skills', '.agents/rules', '', ''),
+                ('claude', 'Claude Code', '.claude/skills', '.claude/rules', '.claude/mcp.json', '~/.claude/mcp.json');
 
             INSERT OR IGNORE INTO settings (key, value) VALUES ('initialized_defaults', 'true');
+        ")?;
+    }
+
+    // Backfill MCP paths for users who initialized their database before MCP
+    // support existed. Only fills paths that are still empty, so it never
+    // clobbers a customised value. Runs once, gated by a settings flag.
+    let mcp_backfilled: rusqlite::Result<String> = conn.query_row(
+        "SELECT value FROM settings WHERE key = 'mcp_defaults_backfilled'",
+        [],
+        |row| row.get(0),
+    );
+
+    if mcp_backfilled.is_err() {
+        conn.execute_batch("
+            UPDATE agents SET mcp_path = '.windsurf/mcp.json', global_mcp_path = '~/.windsurf/mcp.json'
+                WHERE id = 'windsurf' AND mcp_path = '' AND global_mcp_path = '';
+            UPDATE agents SET mcp_path = '.claude/mcp.json', global_mcp_path = '~/.claude/mcp.json'
+                WHERE id = 'claude' AND mcp_path = '' AND global_mcp_path = '';
+
+            INSERT OR IGNORE INTO settings (key, value) VALUES ('mcp_defaults_backfilled', 'true');
         ")?;
     }
 

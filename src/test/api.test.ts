@@ -91,7 +91,7 @@ describe('api', () => {
 
   describe('saveAgent', () => {
     it('passes the agent to the command', async () => {
-      const agent = { id: 'cursor', name: 'Cursor', skillsPath: '.cursor/skills', rulesPath: '.cursor/rules' }
+      const agent = { id: 'cursor', name: 'Cursor', skillsPath: '.cursor/skills', rulesPath: '.cursor/rules', mcpPath: '.cursor/mcp.json', globalMcpPath: '~/.cursor/mcp.json' }
       await api.saveAgent(agent)
       expect(mockInvoke).toHaveBeenCalledWith('save_agent', { agent })
     })

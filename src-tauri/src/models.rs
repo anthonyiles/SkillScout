@@ -47,6 +47,14 @@ pub struct Agent {
     pub skills_path: String,
     #[serde(rename = "rulesPath")]
     pub rules_path: String,
+    // Project-level MCP config path (e.g. ".claude/mcp.json"). Empty if the
+    // agent has no MCP support (e.g. JetBrains).
+    #[serde(rename = "mcpPath", default)]
+    pub mcp_path: String,
+    // Global MCP config path (e.g. "~/.claude/mcp.json"); "~" is expanded by the
+    // backend at apply time. Empty if unsupported.
+    #[serde(rename = "globalMcpPath", default)]
+    pub global_mcp_path: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -76,6 +84,54 @@ pub struct ItemSelection {
     pub applied_sha: Option<String>,
 }
 
+// A persisted record that an MCP server is selected for a given scope.
+// `scope` is "global" or "project"; for global selections `project_id` is 0.
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct McpSelection {
+    pub item_id: String,
+    pub scope: String,
+    pub project_id: i64,
+}
+
+// One unit of work for `apply_mcp_servers`: write or remove a single server
+// key in a single mcp.json file.
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct McpApplyTask {
+    // Target mcp.json path. May start with "~"; expanded by the backend.
+    pub target_path: String,
+    pub server_key: String,
+    // JSON object string written under mcpServers[server_key]; ignored when removing.
+    #[serde(default)]
+    pub config: String,
+    #[serde(default)]
+    pub remove: bool,
+    // When true, overwrite an existing differing key instead of reporting a clash.
+    // Set by the frontend on the second call after the user confirms.
+    #[serde(default)]
+    pub force: bool,
+}
+
+// Returned when an incoming server key already exists with a different config.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct McpClash {
+    pub target_path: String,
+    pub server_key: String,
+    pub existing_config: String,
+    pub incoming_config: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct McpApplyResult {
+    pub applied: usize,
+    pub adopted: usize,
+    pub removed: usize,
+    pub clashes: Vec<McpClash>,
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct PromotedItem {
     pub id: Option<i64>,
@@ -102,11 +158,15 @@ mod tests {
             name: "Cursor".to_string(),
             skills_path: ".cursor/skills".to_string(),
             rules_path: ".cursor/rules".to_string(),
+            mcp_path: ".cursor/mcp.json".to_string(),
+            global_mcp_path: "~/.cursor/mcp.json".to_string(),
         };
         let json = serde_json::to_value(&agent).unwrap();
         assert_eq!(json["id"], "cursor");
         assert_eq!(json["skillsPath"], ".cursor/skills");
         assert_eq!(json["rulesPath"], ".cursor/rules");
+        assert_eq!(json["mcpPath"], ".cursor/mcp.json");
+        assert_eq!(json["globalMcpPath"], "~/.cursor/mcp.json");
         assert!(json.get("skills_path").is_none(), "snake_case key must not appear");
     }
 

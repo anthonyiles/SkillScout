@@ -3,6 +3,8 @@ export interface Agent {
   name: string
   skillsPath: string
   rulesPath: string
+  mcpPath: string
+  globalMcpPath: string
 }
 
 export interface Skill {

@@ -21,7 +21,7 @@ const mockProjects = [
 ]
 
 const mockAgents = [
-  { id: 'cursor', name: 'Cursor', skillsPath: '.cursor/skills', rulesPath: '.cursor/rules' },
+  { id: 'cursor', name: 'Cursor', skillsPath: '.cursor/skills', rulesPath: '.cursor/rules', mcpPath: '.cursor/mcp.json', globalMcpPath: '~/.cursor/mcp.json' },
 ]
 
 const mockItems = [
